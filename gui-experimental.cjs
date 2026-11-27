@@ -4522,7 +4522,7 @@ function setupMcpGuiPage(ctx) {
   const [url, setUrl] = createSignal("https://example.com/mcp"), [cwd, setCwd] = createSignal("");
   const [environmentJson, setEnvironmentJson] = createSignal("{}"), [headersJson, setHeadersJson] = createSignal("{}");
   const [disabled, setDisabled] = createSignal(false), [originalId, setOriginalId] = createSignal(null), [busy, setBusy] = createSignal(false);
-  async function refresh() { try { setManualState(await api().refresh()); } catch (e) { ctx.toast.error(String(e)); } }
+  async function refresh() { try { setManualState(await api().refresh()); } catch (e) { ctx.toast.show({ variant: "error", title: String(e) }); } }
   function edit(s) { setOriginalId(s.id); setId(s.id); setType(s.type); setCommandJson(JSON.stringify(s.command,null,2)); setUrl(s.url); setCwd(s.cwd); setEnvironmentJson(s.environmentJson); setHeadersJson(s.headersJson); setDisabled(s.disabled); }
   function clearForm() { setOriginalId(null); setId(""); setType("local"); setCommandJson('["npx","-y","@modelcontextprotocol/server-example"]'); setUrl("https://example.com/mcp"); setCwd(""); setEnvironmentJson("{}"); setHeadersJson("{}"); setDisabled(false); }
   async function save() {
@@ -4530,7 +4530,7 @@ function setupMcpGuiPage(ctx) {
     try {
       const r = await api().save({ id:id(), originalId:originalId(), type:type(), commandJson:commandJson(), url:url(), cwd:cwd(), environmentJson:environmentJson(), headersJson:headersJson(), disabled:disabled() });
       if (!r.ok) { await ctx.dialogs.alert({ title:"MCP save failed", description:r.message }); return; }
-      ctx.toast.success(r.message); clearForm(); await refresh();
+      ctx.toast.show({ variant: "success", title: r.message }); clearForm(); await refresh();
     } catch(e) { await ctx.dialogs.alert({ title:"MCP save failed", description:String(e) }); }
     finally { setBusy(false); }
   }
@@ -4574,7 +4574,7 @@ function setupMcpGuiPage(ctx) {
             type()==="remote"?field("Headers (JSON object)",headersJson(),setHeadersJson,'{"Authorization":"Bearer {env:API_KEY}"}'):null,
             createComponent(ui.Switch,{label:"Disabled",checked:disabled(),onChange:setDisabled}),
             h("div",{class:"cp-header-actions"},
-              createComponent(ui.Button,{variant:"primary",busy:busy(),onClick:()=>void save(),children:originalId()?"Save changes":"Add MCP server"}),
+              createComponent(ui.Button,{variant:"contrast",busy:busy(),onClick:()=>void save(),children:originalId()?"Save changes":"Add MCP server"}),
               createComponent(ui.Button,{variant:"ghost",onClick:clearForm,children:"Clear form"})
             )
           );
