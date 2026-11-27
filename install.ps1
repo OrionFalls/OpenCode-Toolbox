@@ -74,15 +74,14 @@ $Text = @{
 }
 
 
-$Text.ru | Add-Member -NotePropertyName step3 -NotePropertyValue "Установка / обновление Toolbox" -Force
-$Text.ru | Add-Member -NotePropertyName firstInstall -NotePropertyValue "OpenCode Toolbox ещё не установлен. Начинаем установку..." -Force
-$Text.ru | Add-Member -NotePropertyName checkingUpdate -NotePropertyValue "Сверяем установленную версию с GitHub..." -Force
-$Text.ru | Add-Member -NotePropertyName updateStart -NotePropertyValue "Найдена новая версия. Обновляем OpenCode Toolbox..." -Force
-$Text.ru | Add-Member -NotePropertyName noUpdates -NotePropertyValue "Установлена последняя версия OpenCode Toolbox. Обновлений нет." -Force
-$Text.ru | Add-Member -NotePropertyName updatedBody -NotePropertyValue "OpenCode Toolbox успешно обновлён." -Force
-$Text.ru | Add-Member -NotePropertyName updateFailed -NotePropertyValue "Не удалось выполнить обновление. Предыдущая конфигурация восстановлена." -Force
-$Text.ru | Add-Member -NotePropertyName updateCheckFailed -NotePropertyValue "Не удалось проверить обновления на GitHub. Попробуем выполнить обновление напрямую." -Force
-
+$Text.ru | Add-Member -NotePropertyName step3 -NotePropertyValue ([Text.Encoding]::UTF8.GetString([Convert]::FromBase64String("0KPRgdGC0LDQvdC+0LLQutCwIC8g0L7QsdC90L7QstC70LXQvdC40LUgVG9vbGJveA=="))) -Force
+$Text.ru | Add-Member -NotePropertyName firstInstall -NotePropertyValue ([Text.Encoding]::UTF8.GetString([Convert]::FromBase64String("T3BlbkNvZGUgVG9vbGJveCDQtdGJ0ZEg0L3QtSDRg9GB0YLQsNC90L7QstC70LXQvS4g0J3QsNGH0LjQvdCw0LXQvCDRg9GB0YLQsNC90L7QstC60YMuLi4="))) -Force
+$Text.ru | Add-Member -NotePropertyName checkingUpdate -NotePropertyValue ([Text.Encoding]::UTF8.GetString([Convert]::FromBase64String("0KHQstC10YDRj9C10Lwg0YPRgdGC0LDQvdC+0LLQu9C10L3QvdGD0Y4g0LLQtdGA0YHQuNGOINGBIEdpdEh1Yi4uLg=="))) -Force
+$Text.ru | Add-Member -NotePropertyName updateStart -NotePropertyValue ([Text.Encoding]::UTF8.GetString([Convert]::FromBase64String("0J3QsNC50LTQtdC90LAg0L3QvtCy0LDRjyDQstC10YDRgdC40Y8uINCe0LHQvdC+0LLQu9GP0LXQvCBPcGVuQ29kZSBUb29sYm94Li4u"))) -Force
+$Text.ru | Add-Member -NotePropertyName noUpdates -NotePropertyValue ([Text.Encoding]::UTF8.GetString([Convert]::FromBase64String("0KPRgdGC0LDQvdC+0LLQu9C10L3QsCDQv9C+0YHQu9C10LTQvdGP0Y8g0LLQtdGA0YHQuNGPIE9wZW5Db2RlIFRvb2xib3guINCe0LHQvdC+0LLQu9C10L3QuNC5INC90LXRgi4="))) -Force
+$Text.ru | Add-Member -NotePropertyName updatedBody -NotePropertyValue ([Text.Encoding]::UTF8.GetString([Convert]::FromBase64String("T3BlbkNvZGUgVG9vbGJveCDRg9GB0L/QtdGI0L3QviDQvtCx0L3QvtCy0LvRkdC9Lg=="))) -Force
+$Text.ru | Add-Member -NotePropertyName updateFailed -NotePropertyValue ([Text.Encoding]::UTF8.GetString([Convert]::FromBase64String("0J3QtSDRg9C00LDQu9C+0YHRjCDQstGL0L/QvtC70L3QuNGC0Ywg0L7QsdC90L7QstC70LXQvdC40LUuINCf0YDQtdC00YvQtNGD0YnQsNGPINC60L7QvdGE0LjQs9GD0YDQsNGG0LjRjyDQstC+0YHRgdGC0LDQvdC+0LLQu9C10L3QsC4="))) -Force
+$Text.ru | Add-Member -NotePropertyName updateCheckFailed -NotePropertyValue ([Text.Encoding]::UTF8.GetString([Convert]::FromBase64String("0J3QtSDRg9C00LDQu9C+0YHRjCDQv9GA0L7QstC10YDQuNGC0Ywg0L7QsdC90L7QstC70LXQvdC40Y8g0L3QsCBHaXRIdWIuINCf0L7Qv9GA0L7QsdGD0LXQvCDQstGL0L/QvtC70L3QuNGC0Ywg0L7QsdC90L7QstC70LXQvdC40LUg0L3QsNC/0YDRj9C80YPRji4="))) -Force
 function T([string]$Key) {
     $entry = $Text[$script:Language]
     if ($entry -is [hashtable]) { return $entry[$Key] }
@@ -450,7 +449,11 @@ try {
     $null = Invoke-ToolboxInstallOrUpdate $cliPath $configuredSpec $configPath
 } catch {
     Write-Host ""
-    if ($wasUpdate) { Write-Fail (T "updateFailed") } else { Write-Fail (T "installFailed") }
+    if ($wasUpdate) {
+        Write-Fail (T "updateFailed")
+    } else {
+        Write-Fail (T "installFailed")
+    }
     Write-Host ("  " + (T "errorDetails") + ": " + $_.Exception.Message) -ForegroundColor DarkGray
     Write-Host ("  " + (T "installHelp")) -ForegroundColor Yellow
     Write-Host ""
