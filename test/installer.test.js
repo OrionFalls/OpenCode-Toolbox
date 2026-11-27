@@ -42,7 +42,7 @@ test("Package exports point to files included by the installer", () => {
 test("GUI module pages call the declared ToolboxIpc method and parse its JSON payload", () => {
   const gui = read("../gui-experimental.cjs");
   assert.doesNotMatch(gui, /getModuleSettings\s*\(/);
-  assert.match(gui, /getSettings\(\)\.then\(\(raw\)\s*=>\s*\{/);
+  assert.match(gui, /const raw = await ctx\.main\(ToolboxIpc\)\.getSettings\(\)/);
   assert.match(gui, /const rawSettings = await api\(\)\.getSettings\(\)/);
   assert.match(gui, /const ToolboxIpc = Ipc\.define\([\s\S]*?getSettings:\s*\{\s*output:\s*Schema\.String\s*\}/);
 });
