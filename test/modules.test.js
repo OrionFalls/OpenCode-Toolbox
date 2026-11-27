@@ -67,3 +67,12 @@ test("setProviderModelsEnabled persists all provider models and reloads catalog"
   assert.deepEqual(store.read().modelEnabledOverrides.alpha, { one: false, two: false });
   assert.equal(reloaded, 1);
 });
+
+test("Provider Disabler leaves unrelated native disabled state untouched", async () => {
+  const providers = [{ provider: { id: "native-disabled", activation: "disabled" } }];
+  let transform;
+  const ctx = { provider: { transform: async fn => { transform = fn; return { dispose() {} }; } } };
+  await registerProviderDisabler(ctx, () => ({ modules: { providerDisabler: true }, disabledProviders: [] }));
+  await transform({ list: () => providers, update: (id, fn) => fn(providers[0].provider) });
+  assert.equal(providers[0].provider.activation, "disabled");
+});

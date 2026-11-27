@@ -14,7 +14,6 @@ export async function registerProviderDisabler(ctx, getSettings) {
       const id = record.provider.id;
       editor.update(id, (provider) => {
         if (disabled.has(id)) provider.activation = "disabled";
-        else if (provider.activation === "disabled") provider.activation = "enabled";
       });
     }
   });
