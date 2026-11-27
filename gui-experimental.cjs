@@ -1516,7 +1516,7 @@ async function createMainHandler(ctx) {
       const watcher = fs.watch(configDir, (_event, filename) => {
         if (filename && !/^opencode\.jsonc?$/i.test(String(filename))) return;
         clearTimeout(watchTimer);
-        watchTimer = setTimeout(() => void rebuildState(), 250);
+        watchTimer = setTimeout(() => { void rebuildState(); void rebuildMcpState(); }, 250);
       });
       ctx.onCleanup(() => {
         clearTimeout(watchTimer);
