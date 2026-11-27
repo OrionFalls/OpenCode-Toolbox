@@ -3,7 +3,9 @@
 #   irm https://raw.githubusercontent.com/OrionFalls/OpenCode-Toolbox/main/install.ps1 | iex
 
 [CmdletBinding()]
-param()
+param(
+    [switch]$ValidateOnly
+)
 
 $ErrorActionPreference = "Stop"
 $PluginSpec = "github:OrionFalls/OpenCode-Toolbox#main"
@@ -192,6 +194,11 @@ while (-not $cliPath) {
 
 Write-Ok "Найден OpenCode CLI: $cliPath"
 if ($script:DetectedVersion) { Write-Info "Версия: $script:DetectedVersion" }
+
+if ($ValidateOnly) {
+    Write-Ok "Проверка завершена. Установка и изменение PATH пропущены."
+    return
+}
 
 try {
     Install-CommandShim $cliPath
