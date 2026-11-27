@@ -81,60 +81,17 @@ function Write-Warn([string]$Message) { Write-Host ("  [!]   " + $Message) -Fore
 function Write-Fail([string]$Message) { Write-Host ("  [X]   " + $Message) -ForegroundColor Red }
 
 function Show-Logo {
-    $glyphs = @{
-        O = @("01110","10001","10001","10001","10001","10001","01110")
-        P = @("11110","10001","10001","11110","10000","10000","10000")
-        E = @("11111","10000","10000","11110","10000","10000","11111")
-        N = @("10001","11001","11001","10101","10011","10011","10001")
-        C = @("01111","10000","10000","10000","10000","10000","01111")
-        D = @("11110","10001","10001","10001","10001","10001","11110")
-    }
-    $colors = @(
-        @(244, 76, 238),
-        @(226, 83, 245),
-        @(204, 94, 250),
-        @(178, 108, 255),
-        @(146, 127, 255),
-        @(111, 145, 255),
-        @(76, 132, 255)
+    $logo = @(
+        "__   "
+        "  ____  ____  ___  ____  _________  ____/ /__ "
+        " / __ \/ __ \/ _ \/ __ \/ ___/ __ \/ __  / _ \"
+        "/ /_/ / /_/ /  __/ / / / /__/ /_/ / /_/ /  __/"
+        "\\____/ .___/\\___/_/ /_/\\___/\\____/\\__,_/\\___/ "
+        "    /_/                        T O O L B O X"
     )
-    $esc = [char]27
-    $word = "OPENCODE"
-    for ($row = 0; $row -lt 7; $row++) {
-        $line = " " * ((6 - $row) * 2)
-        foreach ($letter in $word.ToCharArray()) {
-            $pattern = $glyphs[[string]$letter][$row]
-            for ($col = 0; $col -lt 5; $col++) {
-                if ($pattern[$col] -eq "1") {
-                    $color = $colors[$row]
-                    $line += "$esc[1;38;2;$($color[0]);$($color[1]);$($color[2])m██$esc[0m"
-                } else {
-                    $line += "  "
-                }
-            }
-            $line += "  "
-        }
-        [Console]::WriteLine($line.TrimEnd())
+    foreach ($line in $logo) {
+        Write-Host $line -ForegroundColor Cyan
     }
-
-    $tagline = "T  O  O  L  B  O  X"
-    $tagPad = [Math]::Max(0, 108 - $tagline.Length)
-    [Console]::Write(" " * $tagPad)
-    $tagColors = @(
-        @(244, 76, 238), @(224, 89, 245), @(204, 101, 250),
-        @(178, 115, 255), @(145, 130, 255), @(105, 145, 255), @(76, 132, 255)
-    )
-    $tagIndex = 0
-    foreach ($letter in $tagline.ToCharArray()) {
-        if ($letter -eq " ") {
-            [Console]::Write(" ")
-        } else {
-            $color = $tagColors[$tagIndex]
-            [Console]::Write("$esc[1;38;2;$($color[0]);$($color[1]);$($color[2])m$letter$esc[0m")
-            $tagIndex++
-        }
-    }
-    [Console]::WriteLine()
 }
 
 function Show-Banner {
