@@ -1,4 +1,4 @@
-﻿# OpenCode Toolbox — friendly Windows installer (PowerShell 5.1+)
+# OpenCode Toolbox - friendly Windows installer (PowerShell 5.1+)
 # Run from PowerShell:
 # irm https://raw.githubusercontent.com/OrionFalls/OpenCode-Toolbox/main/install.ps1 | iex
 
@@ -60,45 +60,17 @@ $Text = @{
         close = "Installation is complete. You can close this window."
         newTerminal = "Open a new PowerShell window to use the opencode command."
         footer = "No administrator rights are required. Your existing OpenCode settings are not changed."
-        error = "Something went wrong"
+        error = "Could not prepare the command"
         errorDetails = "Details"
     }
-    ru = @{
-        subtitle = "Простая установка для OpenCode Desktop"
-        welcome = "Добро пожаловать!"
-        intro = "Мастер найдёт OpenCode, проверит его и установит Toolbox."
-        step1 = "Поиск OpenCode"
-        step2 = "Подготовка команды"
-        step3 = "Установка Toolbox"
-        found = "OpenCode найден."
-        version = "Версия"
-        pathAdded = "Команда будет доступна в новых окнах терминала."
-        pathExists = "Каталог команды уже добавлен в пользовательский PATH."
-        locating = "Не удалось автоматически найти OpenCode."
-        choose = "Выберите opencode.exe или opencode-cli.exe в окне проводника."
-        pickerUnavailable = "Окно выбора файла недоступно. Ниже можно указать полный путь вручную."
-        enterPath = "Полный путь к OpenCode CLI (Enter — отмена)"
-        invalidPath = "Не удалось запустить этот файл как OpenCode CLI. Попробуйте ещё раз."
-        cancelled = "Установка отменена. Плагин не устанавливался."
-        installStart = "Устанавливаем OpenCode Toolbox. Это может занять несколько минут..."
-        installFailed = "Не удалось установить Toolbox."
-        installHelp = "Проверьте подключение к интернету и GitHub, затем запустите эту команду ещё раз."
-        diagnostics = "Для диагностики скопируйте эту команду"
-        successTitle = "Всё готово!"
-        successBody = "OpenCode Toolbox успешно установлен."
-        next = "Что делать дальше"
-        next1 = "Закройте и заново откройте OpenCode Desktop."
-        next2 = "Откройте Настройки > Расширения > Плагины."
-        next3 = "Найдите OpenCode Toolbox в списке."
-        close = "Установка завершена. Это окно можно закрыть."
-        newTerminal = "Чтобы использовать команду opencode, откройте новое окно PowerShell."
-        footer = "Права администратора не нужны. Существующие настройки OpenCode не изменяются."
-        error = "Что-то пошло не так"
-        errorDetails = "Подробности"
-    }
+    ru = [Text.Encoding]::UTF8.GetString([Convert]::FromBase64String("eyJzdWJ0aXRsZSI6ItCf0YDQvtGB0YLQsNGPINGD0YHRgtCw0L3QvtCy0LrQsCDQtNC70Y8gT3BlbkNvZGUgRGVza3RvcCIsIndlbGNvbWUiOiLQlNC+0LHRgNC+INC/0L7QttCw0LvQvtCy0LDRgtGMISIsImludHJvIjoi0JzQsNGB0YLQtdGAINC90LDQudC00ZHRgiBPcGVuQ29kZSwg0L/RgNC+0LLQtdGA0LjRgiDQtdCz0L4g0Lgg0YPRgdGC0LDQvdC+0LLQuNGCIFRvb2xib3guIiwic3RlcDEiOiLQn9C+0LjRgdC6IE9wZW5Db2RlIiwic3RlcDIiOiLQn9C+0LTQs9C+0YLQvtCy0LrQsCDQutC+0LzQsNC90LTRiyIsInN0ZXAzIjoi0KPRgdGC0LDQvdC+0LLQutCwIFRvb2xib3giLCJmb3VuZCI6Ik9wZW5Db2RlINC90LDQudC00LXQvS4iLCJ2ZXJzaW9uIjoi0JLQtdGA0YHQuNGPIiwicGF0aEFkZGVkIjoi0JrQvtC80LDQvdC00LAg0LHRg9C00LXRgiDQtNC+0YHRgtGD0L/QvdCwINCyINC90L7QstGL0YUg0L7QutC90LDRhSDRgtC10YDQvNC40L3QsNC70LAuIiwicGF0aEV4aXN0cyI6ItCa0LDRgtCw0LvQvtCzINC60L7QvNCw0L3QtNGLINGD0LbQtSDQtNC+0LHQsNCy0LvQtdC9INCyINC/0L7Qu9GM0LfQvtCy0LDRgtC10LvRjNGB0LrQuNC5IFBBVEguIiwibG9jYXRpbmciOiLQndC1INGD0LTQsNC70L7RgdGMINCw0LLRgtC+0LzQsNGC0LjRh9C10YHQutC4INC90LDQudGC0LggT3BlbkNvZGUuIiwiY2hvb3NlIjoi0JLRi9Cx0LXRgNC40YLQtSBvcGVuY29kZS5leGUg0LjQu9C4IG9wZW5jb2RlLWNsaS5leGUg0LIg0L7QutC90LUg0L/RgNC+0LLQvtC00L3QuNC60LAuIiwicGlja2VyVW5hdmFpbGFibGUiOiLQntC60L3QviDQstGL0LHQvtGA0LAg0YTQsNC50LvQsCDQvdC10LTQvtGB0YLRg9C/0L3Qvi4g0J3QuNC20LUg0LzQvtC20L3QviDRg9C60LDQt9Cw0YLRjCDQv9C+0LvQvdGL0Lkg0L/Rg9GC0Ywg0LLRgNGD0YfQvdGD0Y4uIiwiZW50ZXJQYXRoIjoi0J/QvtC70L3Ri9C5INC/0YPRgtGMINC6IE9wZW5Db2RlIENMSSAoRW50ZXIgLSDQvtGC0LzQtdC90LApIiwiaW52YWxpZFBhdGgiOiLQndC1INGD0LTQsNC70L7RgdGMINC30LDQv9GD0YHRgtC40YLRjCDRjdGC0L7RgiDRhNCw0LnQuyDQutCw0LogT3BlbkNvZGUgQ0xJLiDQn9C+0L/RgNC+0LHRg9C50YLQtSDQtdGJ0ZEg0YDQsNC3LiIsImNhbmNlbGxlZCI6ItCj0YHRgtCw0L3QvtCy0LrQsCDQvtGC0LzQtdC90LXQvdCwLiDQn9C70LDQs9C40L0g0L3QtSDRg9GB0YLQsNC90LDQstC70LjQstCw0LvRgdGPLiIsImluc3RhbGxTdGFydCI6ItCj0YHRgtCw0L3QsNCy0LvQuNCy0LDQtdC8IE9wZW5Db2RlIFRvb2xib3guINCt0YLQviDQvNC+0LbQtdGCINC30LDQvdGP0YLRjCDQvdC10YHQutC+0LvRjNC60L4g0LzQuNC90YPRgi4uLiIsImluc3RhbGxGYWlsZWQiOiLQndC1INGD0LTQsNC70L7RgdGMINGD0YHRgtCw0L3QvtCy0LjRgtGMIFRvb2xib3guIiwiaW5zdGFsbEhlbHAiOiLQn9GA0L7QstC10YDRjNGC0LUg0L/QvtC00LrQu9GO0YfQtdC90LjQtSDQuiDQuNC90YLQtdGA0L3QtdGC0YMg0LggR2l0SHViLCDQt9Cw0YLQtdC8INC30LDQv9GD0YHRgtC40YLQtSDRjdGC0YMg0LrQvtC80LDQvdC00YMg0LXRidGRINGA0LDQty4iLCJkaWFnbm9zdGljcyI6ItCU0LvRjyDQtNC40LDQs9C90L7RgdGC0LjQutC4INGB0LrQvtC/0LjRgNGD0LnRgtC1INGN0YLRgyDQutC+0LzQsNC90LTRgyIsInN1Y2Nlc3NUaXRsZSI6ItCS0YHRkSDQs9C+0YLQvtCy0L4hIiwic3VjY2Vzc0JvZHkiOiJPcGVuQ29kZSBUb29sYm94INGD0YHQv9C10YjQvdC+INGD0YHRgtCw0L3QvtCy0LvQtdC9LiIsIm5leHQiOiLQp9GC0L4g0LTQtdC70LDRgtGMINC00LDQu9GM0YjQtSIsIm5leHQxIjoi0JfQsNC60YDQvtC50YLQtSDQuCDQt9Cw0L3QvtCy0L4g0L7RgtC60YDQvtC50YLQtSBPcGVuQ29kZSBEZXNrdG9wLiIsIm5leHQyIjoi0J7RgtC60YDQvtC50YLQtSDQndCw0YHRgtGA0L7QudC60LggPiDQoNCw0YHRiNC40YDQtdC90LjRjyA+INCf0LvQsNCz0LjQvdGLLiIsIm5leHQzIjoi0J3QsNC50LTQuNGC0LUgT3BlbkNvZGUgVG9vbGJveCDQsiDRgdC/0LjRgdC60LUuIiwiY2xvc2UiOiLQo9GB0YLQsNC90L7QstC60LAg0LfQsNCy0LXRgNGI0LXQvdCwLiDQrdGC0L4g0L7QutC90L4g0LzQvtC20L3QviDQt9Cw0LrRgNGL0YLRjC4iLCJuZXdUZXJtaW5hbCI6ItCn0YLQvtCx0Ysg0LjRgdC/0L7Qu9GM0LfQvtCy0LDRgtGMINC60L7QvNCw0L3QtNGDIG9wZW5jb2RlLCDQvtGC0LrRgNC+0LnRgtC1INC90L7QstC+0LUg0L7QutC90L4gUG93ZXJTaGVsbC4iLCJmb290ZXIiOiLQn9GA0LDQstCwINCw0LTQvNC40L3QuNGB0YLRgNCw0YLQvtGA0LAg0L3QtSDQvdGD0LbQvdGLLiDQodGD0YnQtdGB0YLQstGD0Y7RidC40LUg0L3QsNGB0YLRgNC+0LnQutC4IE9wZW5Db2RlINC90LUg0LjQt9C80LXQvdGP0Y7RgtGB0Y8uIiwiZXJyb3IiOiLQndC1INGD0LTQsNC70L7RgdGMINC/0L7QtNCz0L7RgtC+0LLQuNGC0Ywg0LrQvtC80LDQvdC00YMiLCJlcnJvckRldGFpbHMiOiLQn9C+0LTRgNC+0LHQvdC+0YHRgtC4In0=")) | ConvertFrom-Json
 }
 
-function T([string]$Key) { return $Text[$script:Language][$Key] }
+function T([string]$Key) {
+    $entry = $Text[$script:Language]
+    if ($entry -is [hashtable]) { return $entry[$Key] }
+    return $entry.PSObject.Properties[$Key].Value
+}
 function Write-Rule { Write-Host "  ----------------------------------------------------------------" -ForegroundColor DarkGray }
 function Write-Step([int]$Number, [string]$Message) {
     Write-Host ""
