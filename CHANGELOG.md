@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.2.42
+
+- Bulk Model Toggle полностью переведён на нативную модель видимости OpenCode Desktop: сохраняет `user[].visibility = show/hide` в `drafts.sqlite` (`opencode.global.dat:model`).
+- Удалён provider transform, изменявший `Model.Info.enabled` и приводивший к исчезновению раздела провайдера. Массовое переключение больше не меняет каталог моделей.
+- После обновления видимости окна Desktop автоматически перезагружаются, чтобы обновить in-memory storage.
+- Удалены устаревшие `providerEnabledOverrides` и `modelEnabledOverrides` из настроек Toolbox; сохранена независимость Provider Disabler.
+- Добавлены тесты для сохранения, повторного включения и защиты настроек других провайдеров.
+
+
 ## 0.2.41
 
 - Bulk Model Toggle: массовое изменение `enabled` больше не вызывает принудительный reload каталога провайдера, который приводил к исчезновению строк Models. Сохранение выполняется через общий файл настроек; watcher повторно применяет provider transform.
