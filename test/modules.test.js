@@ -2,6 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { registerProviderDisabler, setProviderDisabled } from "../modules/provider-and-mcp.js";
 import { registerBulkModelToggle, setProviderModelsEnabled } from "../modules/bulk-model-toggle.js";
+import { getAllowedModels, resolveDesktopDatabasePath } from "../modules/true-model-disabler.js";
 
 function storage(initial = {}) {
   let value = structuredClone(initial);
@@ -75,4 +76,35 @@ test("Provider Disabler leaves unrelated native disabled state untouched", async
   await registerProviderDisabler(ctx, () => ({ modules: { providerDisabler: true }, disabledProviders: [] }));
   await transform({ list: () => providers, update: (id, fn) => fn(providers[0].provider) });
   assert.equal(providers[0].provider.activation, "disabled");
+});
+
+
+test("True Model Disabler resolves Windows DB path lazily", () => {
+  assert.equal(resolveDesktopDatabasePath({ APPDATA: "C:\\\\Users\\\\Test\\\\AppData\\\\Roaming" }), "C:\\\\Users\\\\Test\\\\AppData\\\\Roaming\\\\ai.opencode.desktop\\\\drafts.sqlite");
+});
+
+test("True Model Disabler explicit show/hide overrides include speed variants", () => {
+  const models = [
+    { providerID: "p", id: "old", family: "f", time: { released: 1 } },
+    { providerID: "p", id: "speed", family: "f", time: { released: 1 }, experimental: { speed: { base: "old" } } },
+    { providerID: "p", id: "forced", family: "f", time: { released: 1 } },
+  ];
+  const policy = { ready: true, overrides: new Map([["p:old", "show"], ["p:forced", "hide"]]) };
+  const allowed = getAllowedModels(models, policy, 2_000_000_000_000);
+  assert.equal(allowed.has("p:old"), true);
+  assert.equal(allowed.has("p:speed"), true);
+  assert.equal(allowed.has("p:forced"), false);
+});
+
+test("True Model Disabler preserves free and recently released models", () => {
+  const now = 2_000_000_000_000, old = now - 400 * 86400000;
+  const models = [
+    { providerID: "opencode", id: "free", family: "free", cost: [], time: { released: old } },
+    { providerID: "p", id: "recent", family: "family", cost: [{ input: 1 }], time: { released: now - 7 * 86400000 } },
+    { providerID: "p", id: "stale", family: "family", cost: [{ input: 1 }], time: { released: old } },
+  ];
+  const allowed = getAllowedModels(models, { ready: true, overrides: new Map() }, now);
+  assert.equal(allowed.has("opencode:free"), true);
+  assert.equal(allowed.has("p:recent"), true);
+  assert.equal(allowed.has("p:stale"), false);
 });
