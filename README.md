@@ -22,9 +22,9 @@ Open PowerShell and run this single command:
 irm https://raw.githubusercontent.com/OrionFalls/OpenCode-Toolbox/main/install.ps1 | iex
 ```
 
-The self-healing installer automatically selects Russian or English using the Windows display language. It uses a friendly three-step terminal wizard, explains the final next steps, and clearly tells the user when the window can be closed.
+The installer automatically selects Russian or English using the Windows display language. The same command handles both first-time installation and future updates: it checks the installed Git commit against the latest commit on GitHub, reports when no update is available, and refreshes only Toolbox when a newer commit exists. It preserves the previous plugin configuration and cached package if an update fails.
 
-The self-healing installer:
+The installer:
 
 1. Checks whether `opencode` is already available.
 2. Searches OpenCode Desktop's versioned CLI folders, common installation locations, App Paths registry entries, and Start Menu shortcuts.
@@ -63,9 +63,7 @@ opencode plugin add git+https://github.com/OrionFalls/OpenCode-Toolbox.git#main
 
 ### Update
 
-```powershell
-opencode plugin update "git+https://github.com/OrionFalls/OpenCode-Toolbox.git#main"
-```
+Run the exact same PowerShell command shown in **Install on Windows**. It detects the existing installation, checks GitHub, and updates Toolbox only when a newer commit is available. You do not need a separate update command.
 
 ### Remove
 
