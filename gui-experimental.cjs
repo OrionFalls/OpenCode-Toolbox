@@ -249,11 +249,22 @@ const McpIpc = Ipc.define({
   },
 });
 
+const BulkModelVisibilityInputSchema = Schema.Struct({
+  providerID: Schema.String,
+  modelIDs: Schema.Array(Schema.String),
+  visible: Schema.Boolean,
+});
+const BulkModelVisibilityResultSchema = Schema.Struct({
+  ok: Schema.Boolean,
+  message: Schema.String,
+  changed: Schema.Number,
+});
 const ToolboxIpc = Ipc.define({
   id: "opencode-toolbox.settings",
   methods: {
     getSettings: { output: Schema.String },
     saveSettings: { input: Schema.String, output: Schema.Struct({ ok: Schema.Boolean, message: Schema.String }) },
+    setProviderModelVisibility: { input: BulkModelVisibilityInputSchema, output: BulkModelVisibilityResultSchema },
     reloadWindow: { output: Schema.Struct({ ok: Schema.Boolean, message: Schema.String }) },
   },
 });
@@ -2305,10 +2316,13 @@ async function createMainHandler(ctx) {
       try {
         const raw = await fsp.readFile(toolboxSettingsPath, "utf8");
         const value = JSON.parse(raw);
-        return JSON.stringify({ ...value, modules: { trueModelDisabler: value.modules?.trueModelDisabler !== false, providerDisabler: true, bulkModelToggle: true, mcpGui: true, customProviders: true } });
+        const clean = { ...value };
+        delete clean.providerEnabledOverrides;
+        delete clean.modelEnabledOverrides;
+        return JSON.stringify({ ...clean, modules: { trueModelDisabler: value.modules?.trueModelDisabler !== false, providerDisabler: true, bulkModelToggle: true, mcpGui: true, customProviders: true } });
       }
       catch (error) {
-        if (error?.code === "ENOENT") return JSON.stringify({ modules: { trueModelDisabler: true, providerDisabler: true, bulkModelToggle: true, mcpGui: true, customProviders: true }, disabledProviders: [], disabledMcpServers: [], modelEnabledOverrides: {} });
+        if (error?.code === "ENOENT") return JSON.stringify({ modules: { trueModelDisabler: true, providerDisabler: true, bulkModelToggle: true, mcpGui: true, customProviders: true }, disabledProviders: [], disabledMcpServers: [] });
         throw error;
       }
     },
@@ -2327,14 +2341,75 @@ async function createMainHandler(ctx) {
           },
           disabledProviders: Array.isArray(value.disabledProviders) ? [...new Set(value.disabledProviders.filter(x => typeof x === "string" && x.trim()))] : [],
           disabledMcpServers: Array.isArray(value.disabledMcpServers) ? [...new Set(value.disabledMcpServers.filter(x => typeof x === "string" && x.trim()))] : [],
-          modelEnabledOverrides: value.modelEnabledOverrides && typeof value.modelEnabledOverrides === "object" && !Array.isArray(value.modelEnabledOverrides) ? value.modelEnabledOverrides : {},
         };
+        delete normalized.providerEnabledOverrides;
+        delete normalized.modelEnabledOverrides;
         await fsp.mkdir(configDir, { recursive: true });
         const temporaryPath = toolboxSettingsPath + "." + process.pid + ".tmp";
         await fsp.writeFile(temporaryPath, JSON.stringify(normalized, null, 2) + "\n", "utf8");
         await fsp.rename(temporaryPath, toolboxSettingsPath);
         return { ok: true, message: "Saved. Provider and model changes are being applied automatically." };
       } catch (error) { return { ok: false, message: error instanceof Error ? error.message : String(error) }; }
+    },
+    async setProviderModelVisibility(input) {
+      let db;
+      let transaction = false;
+      try {
+        const providerID = String(input?.providerID || "").trim();
+        const modelIDs = Array.isArray(input?.modelIDs) ? input.modelIDs : [];
+        const visible = input?.visible;
+        if (!providerID) throw new Error("Select a provider first.");
+        if (!modelIDs.length) throw new Error("No models were found for the selected provider.");
+        if (typeof visible !== "boolean") throw new Error("Visibility must be a boolean.");
+
+        const { DatabaseSync } = require("node:sqlite");
+        const { app, BrowserWindow } = require("electron");
+        const databasePath = path.join(app.getPath("userData"), "drafts.sqlite");
+        db = new DatabaseSync(databasePath);
+        db.exec("PRAGMA busy_timeout = 5000");
+        db.exec("BEGIN IMMEDIATE");
+        transaction = true;
+
+        const row = db.prepare("SELECT value FROM state WHERE name = ? AND key = ?")
+          .get("opencode.global.dat", "model");
+        const current = row?.value ? JSON.parse(row.value) : {};
+        const { updateModelVisibilityState } = await import("./modules/bulk-model-toggle.js");
+        const updated = updateModelVisibilityState(current, providerID, modelIDs, visible);
+
+        if (updated.changed > 0) {
+          db.prepare("INSERT INTO state (name, key, value, updated_at) VALUES (?, ?, ?, ?) " +
+            "ON CONFLICT(name, key) DO UPDATE SET value = excluded.value, updated_at = excluded.updated_at")
+            .run("opencode.global.dat", "model", JSON.stringify(updated.state), Date.now());
+        }
+        db.exec("COMMIT");
+        transaction = false;
+        db.close();
+        db = undefined;
+
+        if (updated.changed > 0) {
+          // The renderer caches global storage in memory. Reload windows after the DB commit
+          // so every window hydrates the new native visibility state from SQLite.
+          setTimeout(() => {
+            for (const window of BrowserWindow.getAllWindows()) {
+              if (window.isDestroyed()) continue;
+              try { window.webContents.reload(); } catch {}
+            }
+          }, 350);
+        }
+
+        return {
+          ok: true,
+          changed: updated.changed,
+          message: (visible ? "Enabled " : "Disabled ") + updated.changed + " native model switches. OpenCode windows are refreshing.",
+        };
+      } catch (error) {
+        if (transaction && db) {
+          try { db.exec("ROLLBACK"); } catch {}
+        }
+        return { ok: false, changed: 0, message: error instanceof Error ? error.message : String(error) };
+      } finally {
+        try { db?.close(); } catch {}
+      }
     },
     async reloadWindow() {
       try {
@@ -4689,7 +4764,7 @@ function setupToolboxPage(ctx) {
     id:"toolbox",title:"OpenCode Toolbox",icon:"outline-sliders",
     entries:[{id:"toolbox-settings",title:"Toolbox settings",description:"Configure model visibility, providers and models",keywords:"toolbox settings providers models"}],
     render:()=>{
-      const [settings,setSettings]=createSignal({modules:{trueModelDisabler:true,providerDisabler:true,bulkModelToggle:true,mcpGui:true,customProviders:true},disabledProviders:[],disabledMcpServers:[],modelEnabledOverrides:{}});
+      const [settings,setSettings]=createSignal({modules:{trueModelDisabler:true,providerDisabler:true,bulkModelToggle:true,mcpGui:true,customProviders:true},disabledProviders:[],disabledMcpServers:[]});
       const [providers,setProviders]=createSignal([]),[models,setModels]=createSignal([]),[selected,setSelected]=createSignal("");
       const [status,setStatus]=createSignal("Loading settings…"),[busy,setBusy]=createSignal(false);
       const load=async()=>{
@@ -4723,11 +4798,18 @@ function setupToolboxPage(ctx) {
         if(value)ids.delete(id);else ids.add(id);
         void save({...settings(),disabledProviders:[...ids]});
       };
-      const bulk=enabled=>{
+      const bulk=async visible=>{
         const id=selected();
         if(!id){setStatus("Select a provider first.");return;}
-        const overrides={...(settings().providerEnabledOverrides||{}),[id]:Boolean(enabled)};
-        void save({...settings(),providerEnabledOverrides:overrides});
+        const modelIDs=[...new Set(models().filter(m=>m.providerID===id).map(m=>m.id))];
+        if(!modelIDs.length){setStatus("No models were found for the selected provider.");return;}
+        setBusy(true);
+        try{
+          const result=await ipc.setProviderModelVisibility({providerID:id,modelIDs,visible:Boolean(visible)});
+          if(!result.ok)throw new Error(result.message);
+          setStatus(result.message);
+        }catch(e){setStatus("Bulk visibility update failed: "+String(e));}
+        finally{setBusy(false);}
       };
       void load();
       return createComponent(ui.SettingsLayout,{
@@ -4755,7 +4837,7 @@ function setupToolboxPage(ctx) {
              ];
            }}),
 createComponent(ui.SettingsSection,{title:"About",get children(){return [
-            createComponent(ui.SettingsRow,{title:"Version",description:"0.2.41"}),
+            createComponent(ui.SettingsRow,{title:"Version",description:"0.2.42"}),
             createComponent(ui.SettingsRow,{title:"Settings file",description:"opencode-toolbox.json in the OpenCode config directory."}),
             createComponent(ui.SettingsRow,{title:"Custom Providers attribution",description:"Based on MoGLCL/opencode-custom-provider by MoGlitch. MIT License."}),
             createComponent(ui.SettingsRow,{title:"Status",description:status()||"Ready"})
