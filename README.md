@@ -4,7 +4,7 @@
 
 OpenCode Toolbox is a single plugin with its own settings page. Features are organized as independent modules that can be enabled or disabled separately.
 
-> Current status: **0.1.0 — UI prototype.** The settings page and demo switches are implemented. The switches are not persisted and do not activate module functionality yet.
+> Current status: **0.1.0 — UI prototype.** The settings page and demo switches are implemented. The switches are not persisted and do not activate module functionality yet. The installer and GUI now support Russian and English.
 
 ## Modules
 
@@ -22,6 +22,8 @@ Open PowerShell and run this single command:
 irm https://raw.githubusercontent.com/OrionFalls/OpenCode-Toolbox/main/install.ps1 | iex
 ```
 
+The self-healing installer automatically selects Russian or English using the Windows display language. It uses a friendly three-step terminal wizard, explains the final next steps, and clearly tells the user when the window can be closed.
+
 The self-healing installer:
 
 1. Checks whether `opencode` is already available.
@@ -33,11 +35,23 @@ The self-healing installer:
 
 The installer does not change machine-wide settings, does not require administrator privileges, and does not download or execute an installer for OpenCode itself.
 
+The installer supports Windows PowerShell 5.1 and newer. It uses UTF-8 output and preserves Russian text in Windows PowerShell 5.1.
+
 After success, restart OpenCode Desktop and open:
 
 **Settings → Extensions → Plugins → OpenCode Toolbox**
 
 You can also open its settings with `/toolbox`.
+
+## Languages
+
+The GUI uses OpenCode's native plugin localization API (`ctx.t` and `Plugin.define({ i18n })`). It follows the language selected in OpenCode automatically:
+
+- Russian OpenCode interface → Russian Toolbox interface.
+- English OpenCode interface → English Toolbox interface.
+- Other or unsupported locales → English fallback.
+
+No separate language setting is required.
 
 ### Manual install
 
