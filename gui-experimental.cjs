@@ -226,6 +226,29 @@ const ProviderActionResultSchema = Schema.Struct({
   importedCount: Schema.Number,
 });
 
+const McpEntrySchema = Schema.Struct({
+  id: Schema.String, type: Schema.String, disabled: Schema.Boolean,
+  command: Schema.Array(Schema.String), url: Schema.String, cwd: Schema.String,
+  environmentJson: Schema.String, headersJson: Schema.String,
+});
+const McpStateSchema = Schema.Struct({
+  configPath: Schema.String, servers: Schema.Array(McpEntrySchema), error: Schema.NullOr(Schema.String),
+});
+const McpResultSchema = Schema.Struct({ ok: Schema.Boolean, message: Schema.String });
+const McpIpc = Ipc.define({
+  id: "mcp-gui", state: McpStateSchema,
+  methods: {
+    refresh: { output: McpStateSchema },
+    save: { input: Schema.Struct({
+      id: Schema.String, originalId: Schema.NullOr(Schema.String), type: Schema.String,
+      commandJson: Schema.String, url: Schema.String, cwd: Schema.String,
+      environmentJson: Schema.String, headersJson: Schema.String, disabled: Schema.Boolean,
+    }), output: McpResultSchema },
+    setDisabled: { input: Schema.Struct({ id: Schema.String, disabled: Schema.Boolean }), output: McpResultSchema },
+    remove: { input: Schema.Struct({ id: Schema.String }), output: McpResultSchema },
+  },
+});
+
 const CustomProviderIpc = Ipc.define({
   id: "custom-provider",
   state: StateSchema,
@@ -2161,6 +2184,97 @@ async function createMainHandler(ctx) {
     },
   });
 
+
+  let currentMcpState = { configPath: "", servers: [], error: null };
+  let mcpIpcHandle = null;
+  async function rebuildMcpState() {
+    try {
+      const { filePath, exists } = await resolveConfigFile();
+      const cfg = exists ? await readConfigObject(filePath) : {};
+      const source = cfg.mcp?.servers && typeof cfg.mcp.servers === "object" ? cfg.mcp.servers : {};
+      const servers = Object.entries(source).map(([id, value]) => {
+        const server = value && typeof value === "object" ? value : {};
+        return {
+          id, type: String(server.type || "local"), disabled: Boolean(server.disabled),
+          command: Array.isArray(server.command) ? server.command.map(String) : [],
+          url: String(server.url || ""), cwd: String(server.cwd || ""),
+          environmentJson: JSON.stringify(server.environment || {}, null, 2),
+          headersJson: JSON.stringify(server.headers || {}, null, 2),
+        };
+      });
+      currentMcpState = { configPath: filePath, servers, error: null };
+    } catch (error) {
+      currentMcpState = { configPath: "", servers: [], error: error instanceof Error ? error.message : String(error) };
+    }
+    mcpIpcHandle?.changed();
+    return currentMcpState;
+  }
+  await rebuildMcpState();
+  mcpIpcHandle = ctx.provide(McpIpc, {
+    state: () => currentMcpState,
+    async refresh() { return rebuildMcpState(); },
+    async save(input) {
+      try {
+        const id = String(input.id || "").trim();
+        if (!/^[a-zA-Z0-9._-]+$/.test(id)) return { ok: false, message: "ID may contain only letters, numbers, dot, underscore and hyphen." };
+        if (input.type !== "local" && input.type !== "remote") return { ok: false, message: "Unsupported MCP type." };
+        const command = input.type === "local" ? JSON.parse(input.commandJson || "[]") : [];
+        const environment = JSON.parse(input.environmentJson || "{}");
+        const headers = JSON.parse(input.headersJson || "{}");
+        if (input.type === "local" && (!Array.isArray(command) || command.length === 0 || command.some((v) => typeof v !== "string" || !v.trim()))) return { ok: false, message: "Local MCP requires a command array of non-empty strings." };
+        if (input.type === "remote" && !/^https?:\/\//i.test(input.url || "")) return { ok: false, message: "Remote MCP URL must start with http:// or https://." };
+        if (!environment || typeof environment !== "object" || Array.isArray(environment) || Object.values(environment).some((v) => typeof v !== "string")) return { ok: false, message: "Environment must be a JSON object with string values." };
+        if (!headers || typeof headers !== "object" || Array.isArray(headers) || Object.values(headers).some((v) => typeof v !== "string")) return { ok: false, message: "Headers must be a JSON object with string values." };
+        const { filePath } = await resolveConfigFile();
+        const cfg = await readConfigObject(filePath);
+        cfg.mcp = cfg.mcp && typeof cfg.mcp === "object" ? { ...cfg.mcp } : {};
+        cfg.mcp.servers = cfg.mcp.servers && typeof cfg.mcp.servers === "object" ? { ...cfg.mcp.servers } : {};
+        const oldId = input.originalId || id;
+        const previous = cfg.mcp.servers[oldId] && typeof cfg.mcp.servers[oldId] === "object" ? cfg.mcp.servers[oldId] : {};
+        const next = { ...previous, type: input.type, disabled: Boolean(input.disabled) };
+        if (input.type === "local") {
+          next.command = command;
+          if (input.cwd.trim()) next.cwd = input.cwd.trim(); else delete next.cwd;
+          if (Object.keys(environment).length) next.environment = environment; else delete next.environment;
+          delete next.url; delete next.headers;
+        } else {
+          next.url = input.url.trim();
+          if (Object.keys(headers).length) next.headers = headers; else delete next.headers;
+          delete next.command; delete next.cwd; delete next.environment;
+        }
+        if (oldId !== id) delete cfg.mcp.servers[oldId];
+        cfg.mcp.servers[id] = next;
+        await writeConfigObject(filePath, cfg);
+        await rebuildMcpState();
+        return { ok: true, message: "MCP server saved. OpenCode will reload the updated configuration." };
+      } catch (error) { return { ok: false, message: error instanceof Error ? error.message : String(error) }; }
+    },
+    async setDisabled({ id, disabled }) {
+      try {
+        const { filePath } = await resolveConfigFile();
+        const cfg = await readConfigObject(filePath);
+        const server = cfg.mcp?.servers?.[id];
+        if (!server) return { ok: false, message: "MCP server not found." };
+        server.disabled = Boolean(disabled);
+        await writeConfigObject(filePath, cfg);
+        await rebuildMcpState();
+        return { ok: true, message: disabled ? "MCP server disabled." : "MCP server enabled." };
+      } catch (error) { return { ok: false, message: error instanceof Error ? error.message : String(error) }; }
+    },
+    async remove({ id }) {
+      try {
+        const { filePath } = await resolveConfigFile();
+        const cfg = await readConfigObject(filePath);
+        if (!cfg.mcp?.servers?.[id]) return { ok: false, message: "MCP server not found." };
+        delete cfg.mcp.servers[id];
+        if (!Object.keys(cfg.mcp.servers).length) delete cfg.mcp.servers;
+        if (!Object.keys(cfg.mcp).length) delete cfg.mcp;
+        await writeConfigObject(filePath, cfg);
+        await rebuildMcpState();
+        return { ok: true, message: "MCP server removed from OpenCode config." };
+      } catch (error) { return { ok: false, message: error instanceof Error ? error.message : String(error) }; }
+    },
+  });
   ipcHandle?.changed();
   void rebuildState();
 }
@@ -4397,6 +4511,78 @@ function setupRenderer(ctx) {
 // ---------------------------------------------------------------------------
 // OpenCode Toolbox integration
 // ---------------------------------------------------------------------------
+
+
+function setupMcpGuiPage(ctx) {
+  const ui = ctx.ui, ipc = ctx.use(McpIpc), api = () => ctx.main(McpIpc);
+  const [manualState, setManualState] = createSignal(null);
+  const state = () => manualState() ?? (ipc().status === "active" ? ipc().value.state() : undefined);
+  const [id, setId] = createSignal(""), [type, setType] = createSignal("local");
+  const [commandJson, setCommandJson] = createSignal('["npx","-y","@modelcontextprotocol/server-example"]');
+  const [url, setUrl] = createSignal("https://example.com/mcp"), [cwd, setCwd] = createSignal("");
+  const [environmentJson, setEnvironmentJson] = createSignal("{}"), [headersJson, setHeadersJson] = createSignal("{}");
+  const [disabled, setDisabled] = createSignal(false), [originalId, setOriginalId] = createSignal(null), [busy, setBusy] = createSignal(false);
+  async function refresh() { try { setManualState(await api().refresh()); } catch (e) { ctx.toast.error(String(e)); } }
+  function edit(s) { setOriginalId(s.id); setId(s.id); setType(s.type); setCommandJson(JSON.stringify(s.command,null,2)); setUrl(s.url); setCwd(s.cwd); setEnvironmentJson(s.environmentJson); setHeadersJson(s.headersJson); setDisabled(s.disabled); }
+  function clearForm() { setOriginalId(null); setId(""); setType("local"); setCommandJson('["npx","-y","@modelcontextprotocol/server-example"]'); setUrl("https://example.com/mcp"); setCwd(""); setEnvironmentJson("{}"); setHeadersJson("{}"); setDisabled(false); }
+  async function save() {
+    setBusy(true);
+    try {
+      const r = await api().save({ id:id(), originalId:originalId(), type:type(), commandJson:commandJson(), url:url(), cwd:cwd(), environmentJson:environmentJson(), headersJson:headersJson(), disabled:disabled() });
+      if (!r.ok) { await ctx.dialogs.alert({ title:"MCP save failed", description:r.message }); return; }
+      ctx.toast.success(r.message); clearForm(); await refresh();
+    } catch(e) { await ctx.dialogs.alert({ title:"MCP save failed", description:String(e) }); }
+    finally { setBusy(false); }
+  }
+  async function toggle(s, value) {
+    try { const r=await api().setDisabled({id:s.id,disabled:!value}); if(!r.ok) await ctx.dialogs.alert({title:"MCP update failed",description:r.message}); else {ctx.toast.success(r.message);await refresh();} }
+    catch(e) { await ctx.dialogs.alert({title:"MCP update failed",description:String(e)}); }
+  }
+  async function remove(s) {
+    const yes=await ctx.dialogs.confirm({title:`Delete MCP server "${s.id}"?`,description:"This removes the server definition from the OpenCode configuration file.",confirm:"Delete",cancel:"Cancel",danger:true});
+    if(!yes)return;
+    try { const r=await api().remove({id:s.id}); if(!r.ok) await ctx.dialogs.alert({title:"MCP delete failed",description:r.message}); else {ctx.toast.success(r.message);if(originalId()===s.id)clearForm();await refresh();} }
+    catch(e) { await ctx.dialogs.alert({title:"MCP delete failed",description:String(e)}); }
+  }
+  const field=(label,value,setter,placeholder)=>h("div",{class:"cp-field"},h("div",{class:"cp-label"},label),createComponent(ui.TextInput,{label,value,placeholder,onInput:setter}));
+  ctx.add(Command,{id:"mcp-gui",title:"Manage MCP Servers",description:"Add, edit, enable, disable and remove MCP servers",keywords:"mcp server tools local remote",group:"Settings",section:"navigation",slash:{name:"mcp-gui"},run:()=>ctx.layout.settings("mcp-gui")});
+  ctx.add(SettingsPage,{
+    id:"mcp-gui",title:"MCP-GUI",icon:"server",
+    entries:[{id:"mcp-servers",title:"MCP Servers",description:"Manage local and remote MCP servers",keywords:"mcp server local remote command url"}],
+    render:()=>createComponent(ui.SettingsLayout,{
+      title:"MCP-GUI",description:"Manage local and remote MCP servers in your OpenCode configuration.",
+      get children(){ return [
+        createComponent(ui.SettingsSection,{title:"Configured servers",get children(){
+          const servers=state()?.servers||[];
+          return [
+            createComponent(ui.SettingsRow,{title:"Configuration file",description:state()?.configPath||"Loading configuration…",get children(){return createComponent(ui.Button,{variant:"ghost",size:"small",onClick:refresh,children:"Refresh"});}}),
+            ...servers.map(s=>createComponent(ui.SettingsRow,{title:s.id,description:s.type==="local"?(s.command||[]).join(" "):s.url,get children(){return h("div",{class:"cp-row-controls"},
+              createComponent(ui.Switch,{label:"Enabled",checked:!s.disabled,onChange:v=>void toggle(s,v)}),
+              createComponent(ui.Button,{variant:"ghost",size:"small",onClick:()=>edit(s),children:"Edit"}),
+              createComponent(ui.IconButton,{icon:"outline-trash",label:`Delete ${s.id}`,onClick:()=>void remove(s)})
+            );}})),
+            ...(servers.length?[]:[createComponent(ui.SettingsRow,{title:"No MCP servers configured",description:"Add a local or remote server below."})])
+          ];
+        }}),
+        createComponent(ui.SettingsSection,{title:originalId()?"Edit MCP server":"Add MCP server",get children(){
+          return h("div",{class:"cp-stack"},
+            field("Server ID",id(),setId,"my-mcp-server"),
+            h("div",{class:"cp-field"},h("div",{class:"cp-label"},"Connection type"),createComponent(ui.Select,{label:"Connection type",options:[{value:"local",label:"Local command"},{value:"remote",label:"Remote HTTP"}],value:type(),onChange:setType})),
+            type()==="local"?field("Command (JSON array)",commandJson(),setCommandJson,'["npx","-y","package-name"]'):field("Server URL",url(),setUrl,"https://example.com/mcp"),
+            type()==="local"?field("Working directory (optional)",cwd(),setCwd,"C:\\work"):null,
+            type()==="local"?field("Environment (JSON object)",environmentJson(),setEnvironmentJson,'{"API_KEY":"{env:API_KEY}"}'):null,
+            type()==="remote"?field("Headers (JSON object)",headersJson(),setHeadersJson,'{"Authorization":"Bearer {env:API_KEY}"}'):null,
+            createComponent(ui.Switch,{label:"Disabled",checked:disabled(),onChange:setDisabled}),
+            h("div",{class:"cp-header-actions"},
+              createComponent(ui.Button,{variant:"primary",busy:busy(),onClick:()=>void save(),children:originalId()?"Save changes":"Add MCP server"}),
+              createComponent(ui.Button,{variant:"ghost",onClick:clearForm,children:"Clear form"})
+            )
+          );
+        }})
+      ]; }
+    })
+  });
+}
 
 function setupToolboxPage(ctx) {
   const ui = ctx.ui;

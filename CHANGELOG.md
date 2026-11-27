@@ -1,9 +1,10 @@
 # Changelog
 
-## 0.2.7 — Integrate Custom Providers GUI
+## 0.2.8 — MCP-GUI
 
-- Integrate the upstream Custom Providers settings page and main-process IPC into the Toolbox GUI plugin.
-- Keep the upstream Custom Providers page and command while adding the Toolbox page.
-- Preserve upstream MIT license and MoGlitch attribution.
-- Update package, GUI, README and changelog version metadata.
-- Document native Providers/Models tab extension limitations of the public GUI SDK.
+- Add a dedicated MCP-GUI settings page between Toolbox and Custom Providers.
+- Add local and remote MCP server creation and editing.
+- Add persistent enable/disable and explicit delete actions.
+- Read and update the OpenCode V2 `mcp.servers` configuration shape.
+- Validate command arrays, URLs, environment variables, and HTTP headers.
+- Preserve upstream Custom Providers GUI integration and attribution.
