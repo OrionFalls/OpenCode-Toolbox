@@ -22,9 +22,13 @@ export function resolveConfigDir(env = process.env, homeDir = os.homedir()) {
 export function normalizeSettings(input = {}) {
   const value = input && typeof input === "object" && !Array.isArray(input) ? input : {};
   const modules = value.modules && typeof value.modules === "object" && !Array.isArray(value.modules) ? value.modules : {};
-  const modelOverrides = value.modelEnabledOverrides && typeof value.modelEnabledOverrides === "object" && !Array.isArray(value.modelEnabledOverrides) ? value.modelEnabledOverrides : {};
+  const normalized = { ...value };
+  // Older Toolbox builds stored provider/model enabled overrides. Native Model
+  // switches are visibility preferences in Desktop storage, so these keys are obsolete.
+  delete normalized.providerEnabledOverrides;
+  delete normalized.modelEnabledOverrides;
   return {
-    ...value,
+    ...normalized,
     modules: {
       trueModelDisabler: modules.trueModelDisabler !== false,
       providerDisabler: true,
@@ -34,7 +38,6 @@ export function normalizeSettings(input = {}) {
     },
     disabledProviders: Array.isArray(value.disabledProviders) ? [...new Set(value.disabledProviders.filter(id => typeof id === "string" && id.trim()))] : [],
     disabledMcpServers: Array.isArray(value.disabledMcpServers) ? [...new Set(value.disabledMcpServers.filter(id => typeof id === "string" && id.trim()))] : [],
-    modelEnabledOverrides: modelOverrides,
   };
 }
 export function setMcpServerDisabled(settings, serverID, disabled) {
