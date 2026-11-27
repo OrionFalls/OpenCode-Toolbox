@@ -230,7 +230,7 @@ function Request-ManualCliPath {
         Add-Type -AssemblyName System.Windows.Forms -ErrorAction Stop
         $dialog = New-Object System.Windows.Forms.OpenFileDialog
         $dialog.Title = T "choose"
-        $dialog.Filter = "OpenCode CLI (opencode.exe;opencode-cli.exe)|opencode.exe;opencode-cli.exe|Executable files (*.exe)|*.exe"
+        $dialog.Filter = 'OpenCode CLI (opencode.exe;opencode-cli.exe)|opencode.exe;opencode-cli.exe|Executable files (*.exe)|*.exe'
         $dialog.CheckFileExists = $true
         $dialog.Multiselect = $false
         if ($dialog.ShowDialog() -eq [System.Windows.Forms.DialogResult]::OK) { return $dialog.FileName }
