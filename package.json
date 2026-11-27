@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "private": false,
   "description": "A modular enhancement suite for OpenCode Desktop.",
-  "type": "commonjs",
+  "type": "module",
   "main": "./index.js",
   "exports": {
     ".": "./index.js",
@@ -25,5 +25,8 @@
   "bugs": {
     "url": "https://github.com/OrionFalls/OpenCode-Toolbox/issues"
   },
-  "homepage": "https://github.com/OrionFalls/OpenCode-Toolbox#readme"
+  "homepage": "https://github.com/OrionFalls/OpenCode-Toolbox#readme",
+  "scripts": {
+    "check": "node --check index.js && node --check gui-experimental.cjs"
+  }
 }
