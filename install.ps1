@@ -120,7 +120,7 @@ function Show-Banner {
 }
 
 function Test-OpenCodeCli([string]$Path) {
-    if ([string]::IsNullOrWhiteSpace($Path) -or $Path -notmatch '(?i)\.exe
+    if ([string]::IsNullOrWhiteSpace($Path) -or $Path -notmatch '(?i)\.exe$' -or -not (Test-Path -LiteralPath $Path -PathType Leaf)) { return $false }
     try {
         $output = & $Path --version 2>&1
         if ($LASTEXITCODE -eq 0) {
@@ -161,7 +161,11 @@ function Find-OpenCodeCli {
     foreach ($name in @("opencode", "opencode-cli")) {
         $commands = Get-Command $name -CommandType Application -ErrorAction SilentlyContinue
         foreach ($command in $commands) {
-            if ($command.Source -and $command.Source -match '(?i)\.exe
+            if ($command.Source -and $command.Source -match '(?i)\.exe$' -and
+                -not [string]::Equals($command.Source, $ShimPath, [StringComparison]::OrdinalIgnoreCase)) {
+                $candidates.Add($command.Source)
+            }
+        }
     }
 
     $desktopCliRoot = Join-Path $env:APPDATA "ai.opencode.desktop\cli"
