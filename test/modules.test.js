@@ -208,7 +208,70 @@ test("Provider Disabler leaves unrelated providers untouched and only applies ex
   assert.equal(records.find(r => r.provider.id === "gamma").provider.activation, "disabled");
 });
 
-test("True Model Disabler coalesces concurrent policy reads and caches short-lived results", async () => {
+test("True Model Disabler guards cached language adapters on every generation and stream", async () => {
+  let enabled = false, hookName, hook, readCount = 0;
+  let generateCalls = 0, streamCalls = 0;
+  const models = [{ id: "ernie", providerID: "p", family: "f", time: { released: 1 }, cost: [] }];
+  const sourceLanguage = {
+    specificationVersion: "v3",
+    provider: "p",
+    modelId: "ernie",
+    supportedUrls: {},
+    async doGenerate() { generateCalls++; return { ok: true }; },
+    async doStream() { streamCalls++; return { ok: true }; },
+  };
+  const ctx = {
+    model: { transform: async fn => { fn({ list: () => models }); return { dispose() {} }; } },
+    aisdk: { hook: async (name, fn) => { hookName = name; hook = fn; return { dispose() {} }; } },
+  };
+  await registerTrueModelDisabler(ctx, () => enabled, {
+    cacheMs: 0,
+    readPolicy: async () => {
+      readCount++;
+      return { ready: true, overrides: new Map([["p:ernie", "hide"]]) };
+    },
+  });
+
+  const event = {
+    model: { id: "ernie", providerID: "p" },
+    sdk: { languageModel: () => sourceLanguage },
+  };
+  await hook(event);
+  assert.equal(hookName, "language", "the request adapter, not SDK construction, must be guarded");
+  assert.equal(typeof event.language.doGenerate, "function");
+
+  // The adapter is created while the module is off, then reused by an old session
+  // after the module is enabled. The same guard must enforce the new setting.
+  await event.language.doGenerate({});
+  assert.equal(generateCalls, 1);
+  enabled = true;
+  await assert.rejects(() => event.language.doGenerate({}), /disabled in OpenCode Settings/);
+  await assert.rejects(() => event.language.doStream({}), /disabled in OpenCode Settings/);
+  assert.equal(generateCalls, 1);
+  assert.equal(streamCalls, 0);
+  assert.equal(readCount, 2, "fresh policy is read before each generation");
+});
+
+test("True Model Disabler checks reused adapters for subagents as well as parent sessions", async () => {
+  let hook;
+  const models = [
+    { id: "parent", providerID: "p", family: "f", time: { released: 1 }, cost: [] },
+    { id: "subagent", providerID: "p", family: "g", time: { released: 1 }, cost: [] },
+  ];
+  const ctx = {
+    model: { transform: async fn => { fn({ list: () => models }); return { dispose() {} }; } },
+    aisdk: { hook: async (_name, fn) => { hook = fn; return { dispose() {} }; } },
+  };
+  await registerTrueModelDisabler(ctx, () => true, {
+    readPolicy: async () => ({ ready: true, overrides: new Map([["p:parent", "show"], ["p:subagent", "hide"]]) }),
+  });
+  const language = { async doGenerate() { return { ok: true }; }, async doStream() { return { ok: true }; } };
+  const event = { model: { id: "subagent", providerID: "p" }, sdk: { languageModel: () => language } };
+  await hook(event);
+  await assert.rejects(() => event.language.doGenerate({}), /p\/subagent is disabled/);
+});
+
+test("True Model Disabler coalesces concurrent policy reads", async () => {
   let readCount = 0, hook;
   const models = [{ id: "m", providerID: "p", family: "f", time: { released: 1 }, cost: [] }];
   const ctx = {
@@ -216,24 +279,24 @@ test("True Model Disabler coalesces concurrent policy reads and caches short-liv
     aisdk: { hook: async (_name, fn) => { hook = fn; return { dispose() {} }; } },
   };
   const policy = { ready: true, overrides: new Map([["p:m", "show"]]) };
-  await registerTrueModelDisabler(ctx, () => true, { cacheMs: 30_000, readPolicy: async () => { readCount++; await new Promise(resolve => setImmediate(resolve)); return policy; } });
-  await Promise.all([hook({ model: { id: "m", providerID: "p" } }), hook({ model: { id: "m", providerID: "p" } })]);
+  await registerTrueModelDisabler(ctx, () => true, {
+    cacheMs: 30_000,
+    readPolicy: async () => {
+      readCount++;
+      await new Promise(resolve => setImmediate(resolve));
+      return policy;
+    },
+  });
+  const event = { model: { id: "m", providerID: "p" }, sdk: { languageModel: () => ({
+    async doGenerate() { return { ok: true }; },
+    async doStream() { return { ok: true }; },
+  }) } };
+  await hook(event);
+  await Promise.all([event.language.doGenerate({}), event.language.doStream({})]);
   assert.equal(readCount, 1);
-  await hook({ model: { id: "m", providerID: "p" } });
-  assert.equal(readCount, 1);
+  await event.language.doGenerate({});
+  assert.equal(readCount, 1, "an explicitly configured cache remains supported");
 });
-
-test("True Model Disabler rejects hidden models through the SDK hook", async () => {
-  let hook;
-  const models = [{ id: "hidden", providerID: "p", family: "f", time: { released: 1 }, cost: [] }];
-  const ctx = {
-    model: { transform: async fn => { fn({ list: () => models }); return { dispose() {} }; } },
-    aisdk: { hook: async (_name, fn) => { hook = fn; return { dispose() {} }; } },
-  };
-  await registerTrueModelDisabler(ctx, () => true, { readPolicy: async () => ({ ready: true, overrides: new Map([["p:hidden", "hide"]]) }) });
-  await assert.rejects(() => hook({ model: { id: "hidden", providerID: "p" } }), /disabled in OpenCode Settings/);
-});
-
 
 test("Provider Disabler applies saved disables even when old module flag is false", async () => {
   const providers = [{ provider: { id: "alpha", activation: "enabled" } }];

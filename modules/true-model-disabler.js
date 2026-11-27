@@ -2,7 +2,8 @@ import { existsSync } from "node:fs";
 import path from "node:path";
 
 const SIX_MONTHS = 6 * 30.436875 * 86400000;
-const POLICY_CACHE_MS = 1500;
+// Read the local visibility policy at every model execution; only concurrent reads are coalesced.
+const POLICY_CACHE_MS = 0;
 const modelKey = (model) => model.providerID + ":" + model.id;
 
 export function resolveDesktopDatabasePath(env = process.env, homeDir = env.USERPROFILE || env.HOME || "") {
@@ -59,10 +60,41 @@ export function getAllowedModels(models, policy, now = Date.now()) {
 }
 
 /**
- * Enforces Desktop visibility policy at request time, including subagents.
- * The policy is cached briefly to avoid opening the private SQLite database
- * for each model call. If the private database is unavailable, the module
- * fails open with one warning rather than unexpectedly disabling all models.
+ * Wrap the cached AI SDK language model so the policy is checked for every
+ * generation/stream call, not only when OpenCode first constructs the SDK.
+ *
+ * OpenCode caches language model instances by model configuration. A hook on
+ * the "sdk" event therefore does not run again for old dialogs or later
+ * subagent calls that reuse the same adapter.
+ */
+export function guardLanguageModel(language, assertAllowed) {
+  const methods = new Map();
+  return new Proxy(language, {
+    get(target, property) {
+      if (property !== "doGenerate" && property !== "doStream") {
+        return Reflect.get(target, property, target);
+      }
+      if (methods.has(property)) return methods.get(property);
+      const original = Reflect.get(target, property, target);
+      if (typeof original !== "function") return original;
+      const guarded = async (...args) => {
+        await assertAllowed();
+        return original.apply(target, args);
+      };
+      methods.set(property, guarded);
+      return guarded;
+    },
+  });
+}
+
+/**
+ * Enforces Desktop visibility policy at the actual model execution boundary.
+ * The language adapter remains guarded after OpenCode caches it, so existing
+ * sessions and subagents cannot bypass a later visibility change.
+ *
+ * The local SQLite read is fresh for each generation by default. Concurrent
+ * calls share one in-flight read; an optional cache can be configured for tests
+ * or deployments that explicitly prefer a short staleness window.
  */
 export async function registerTrueModelDisabler(ctx, isEnabled, options = {}) {
   let catalog = [], warnedUnavailable = false;
@@ -72,7 +104,7 @@ export async function registerTrueModelDisabler(ctx, isEnabled, options = {}) {
 
   const getPolicy = async () => {
     const now = Date.now();
-    if (policyCache && now - policyCacheAt < cacheMs) return policyCache;
+    if (cacheMs > 0 && policyCache && now - policyCacheAt < cacheMs) return policyCache;
     if (policyInFlight) return policyInFlight;
     policyInFlight = Promise.resolve().then(() => readPolicy()).then(policy => {
       policyCache = policy;
@@ -91,7 +123,9 @@ export async function registerTrueModelDisabler(ctx, isEnabled, options = {}) {
     }));
   });
 
-  const hook = await ctx.aisdk.hook("sdk", async ({ model }) => {
+  const assertAllowed = async model => {
+    // Keep the wrapper installed even while disabled. Turning the module back
+    // on must also protect a language adapter OpenCode has already cached.
     if (!isEnabled()) return;
     const policy = await getPolicy();
     if (!policy.ready) {
@@ -105,6 +139,11 @@ export async function registerTrueModelDisabler(ctx, isEnabled, options = {}) {
     if (!getAllowedModels(catalog, policy).has(modelKey(model))) {
       throw new Error("True Model Disabler: " + model.providerID + "/" + model.id + " is disabled in OpenCode Settings > Models. This also applies to subagents.");
     }
+  };
+
+  const hook = await ctx.aisdk.hook("language", async event => {
+    const source = event.language || event.sdk.languageModel(event.model.modelID ?? event.model.id);
+    event.language = guardLanguageModel(source, () => assertAllowed(event.model));
   });
   console.info("[opencode-toolbox] True Model Disabler registered");
   return async () => { await hook.dispose(); await transform.dispose(); };

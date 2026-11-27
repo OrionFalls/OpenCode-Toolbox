@@ -27,7 +27,7 @@ export default Plugin.define({
     disposers.push(await registerTrueModelDisabler(ctx, () => getSettings().modules.trueModelDisabler));
     disposers.push(await registerProviderDisabler(ctx, getSettings));
     const stopWatchingSettings = watchSettingsFile(ctx, settingsPath);
-    console.info("[opencode-toolbox] v0.2.42 loaded");
+    console.info("[opencode-toolbox] v0.2.43 loaded");
     return async () => {
       stopWatchingSettings();
       for (const registration of disposers.reverse()) await registration.dispose?.();
