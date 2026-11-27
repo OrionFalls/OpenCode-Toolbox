@@ -6,7 +6,6 @@
 param([switch]$ValidateOnly)
 
 $ErrorActionPreference = "Stop"
-$PluginSpec = "git+https://github.com/OrionFalls/OpenCode-Toolbox.git#main"
 $ShimDirectory = Join-Path $env:LOCALAPPDATA "OpenCode\bin"
 $ShimPath = Join-Path $ShimDirectory "opencode.cmd"
 $script:DetectedVersion = $null
