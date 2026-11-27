@@ -54,7 +54,7 @@ $Text = @{
         noUpdates = "OpenCode Toolbox is up to date. No updates are available."
         updatedBody = "OpenCode Toolbox has been updated successfully."
         updateFailed = "The update failed. Your previous configuration has been restored."
-        updateCheckFailed = "Could not check GitHub for updates. A fresh install/update will be attempted."
+        updateCheckFailed = "Could not check GitHub for updates. Please try again later."
         installFailed = "Toolbox could not be installed."
         installHelp = "Check your internet connection and GitHub access, then run this command again."
         diagnostics = "For support, copy this diagnostic command"
@@ -80,8 +80,7 @@ $Text.ru | Add-Member -NotePropertyName updateStart -NotePropertyValue ([Text.En
 $Text.ru | Add-Member -NotePropertyName noUpdates -NotePropertyValue ([Text.Encoding]::UTF8.GetString([Convert]::FromBase64String("0KPRgdGC0LDQvdC+0LLQu9C10L3QsCDQv9C+0YHQu9C10LTQvdGP0Y8g0LLQtdGA0YHQuNGPIE9wZW5Db2RlIFRvb2xib3guINCe0LHQvdC+0LLQu9C10L3QuNC5INC90LXRgi4="))) -Force
 $Text.ru | Add-Member -NotePropertyName updatedBody -NotePropertyValue ([Text.Encoding]::UTF8.GetString([Convert]::FromBase64String("T3BlbkNvZGUgVG9vbGJveCDRg9GB0L/QtdGI0L3QviDQvtCx0L3QvtCy0LvRkdC9Lg=="))) -Force
 $Text.ru | Add-Member -NotePropertyName updateFailed -NotePropertyValue ([Text.Encoding]::UTF8.GetString([Convert]::FromBase64String("0J3QtSDRg9C00LDQu9C+0YHRjCDQstGL0L/QvtC70L3QuNGC0Ywg0L7QsdC90L7QstC70LXQvdC40LUuINCf0YDQtdC00YvQtNGD0YnQsNGPINC60L7QvdGE0LjQs9GD0YDQsNGG0LjRjyDQstC+0YHRgdGC0LDQvdC+0LLQu9C10L3QsC4="))) -Force
-$Text.ru | Add-Member -NotePropertyName updateCheckFailed -NotePropertyValue ([Text.Encoding]::UTF8.GetString([Convert]::FromBase64String("0J3QtSDRg9C00LDQu9C+0YHRjCDQv9GA0L7QstC10YDQuNGC0Ywg0L7QsdC90L7QstC70LXQvdC40Y8g0L3QsCBHaXRIdWIuINCf0L7Qv9GA0L7QsdGD0LXQvCDQstGL0L/QvtC70L3QuNGC0Ywg0L7QsdC90L7QstC70LXQvdC40LUg0L3QsNC/0YDRj9C80YPRji4="))) -Force
-
+$Text.ru | Add-Member -NotePropertyName updateCheckFailed -NotePropertyValue ([Text.Encoding]::UTF8.GetString([Convert]::FromBase64String("0J3QtSDRg9C00LDQu9C+0YHRjCDQv9GA0L7QstC10YDQuNGC0Ywg0L7QsdC90L7QstC70LXQvdC40Y8g0L3QsCBHaXRIdWIuINCf0L7Qv9GA0L7QsdGD0LnRgtC1INC/0L7Qt9C20LUu"))) -Force
 function T([string]$Key) {
     $entry = $Text[$script:Language]
     if ($entry -is [hashtable]) { return $entry[$Key] }
@@ -284,6 +283,19 @@ function Get-ToolboxConfigPath {
         (Join-Path $env:APPDATA "opencode\opencode.json"),
         (Join-Path $env:APPDATA "opencode\opencode.jsonc")
     )
+    $knownSpecs = @(
+        "git+https://github.com/OrionFalls/OpenCode-Toolbox.git#main",
+        "https://github.com/OrionFalls/OpenCode-Toolbox.git#main",
+        "github:OrionFalls/OpenCode-Toolbox#main"
+    )
+    foreach ($candidate in $candidates) {
+        if (Test-Path -LiteralPath $candidate -PathType Leaf) {
+            $raw = Get-Content -LiteralPath $candidate -Raw
+            foreach ($spec in $knownSpecs) {
+                if ($raw.Contains($spec)) { return $candidate }
+            }
+        }
+    }
     foreach ($candidate in $candidates) {
         if (Test-Path -LiteralPath $candidate -PathType Leaf) { return $candidate }
     }
@@ -304,19 +316,11 @@ function Get-ConfiguredToolboxSpec([string]$ConfigPath) {
     return $null
 }
 
-function Get-InstalledToolboxCommit {
-    $cacheRoot = Join-Path $env:USERPROFILE ".cache\opencode\npm"
-    if (-not (Test-Path -LiteralPath $cacheRoot)) { return $null }
-    $lockFiles = @()
-    $cacheDirs = Get-ChildItem -LiteralPath $cacheRoot -Directory -ErrorAction SilentlyContinue | Where-Object { $_.Name -like "git-OpenCode-Toolbox-*" }
-    foreach ($directory in $cacheDirs) {
-        $lockFiles += Get-ChildItem -LiteralPath $directory.FullName -Filter "package-lock.json" -File -Recurse -ErrorAction SilentlyContinue
+function Get-LocalToolboxCommit([string]$PluginDirectory) {
+    $marker = Join-Path $PluginDirectory ".toolbox-commit"
+    if (Test-Path -LiteralPath $marker -PathType Leaf) {
+        return (Get-Content -LiteralPath $marker -Raw).Trim()
     }
-    $latestLock = $lockFiles | Sort-Object LastWriteTime -Descending | Select-Object -First 1
-    if (-not $latestLock) { return $null }
-    $lockText = Get-Content -LiteralPath $latestLock.FullName -Raw
-    $match = [regex]::Match($lockText, 'git\+(?:ssh|https?)://[^"#]+#([0-9a-f]{40})')
-    if ($match.Success) { return $match.Groups[1].Value }
     return $null
 }
 
@@ -330,51 +334,75 @@ function Get-RemoteToolboxCommit {
     }
 }
 
-function Invoke-ToolboxInstallOrUpdate([string]$CliPath, [string]$ConfiguredSpec, [string]$ConfigPath) {
-    $cacheRoot = Join-Path $env:USERPROFILE ".cache\opencode\npm"
-    $cacheBackup = Join-Path $env:TEMP ("opencode-toolbox-cache-" + [guid]::NewGuid().ToString("N"))
+function Download-ToolboxFile([string]$Uri, [string]$Destination) {
+    $curl = Get-Command "curl.exe" -CommandType Application -ErrorAction SilentlyContinue | Select-Object -First 1
+    if ($curl) {
+        & $curl.Source -L --fail --silent --show-error --retry 2 --connect-timeout 15 --output $Destination $Uri
+        if ($LASTEXITCODE -ne 0) { throw "Download failed: $Uri" }
+    } else {
+        Invoke-WebRequest -UseBasicParsing -Uri $Uri -OutFile $Destination -TimeoutSec 30
+    }
+    if (-not (Test-Path -LiteralPath $Destination -PathType Leaf) -or (Get-Item -LiteralPath $Destination).Length -eq 0) {
+        throw "Downloaded file is missing or empty: $Destination"
+    }
+}
+
+function Invoke-ToolboxInstallOrUpdate([string]$CliPath, [string]$ConfiguredSpec, [string]$ConfigPath, [string]$Commit) {
+    $pluginParent = Join-Path $env:USERPROFILE ".config\opencode\plugins"
+    $pluginDirectory = Join-Path $pluginParent "opencode-toolbox"
+    $stagingDirectory = Join-Path $pluginParent ("opencode-toolbox.staging-" + [guid]::NewGuid().ToString("N"))
+    $backupDirectory = Join-Path $pluginParent ("opencode-toolbox.backup-" + [guid]::NewGuid().ToString("N"))
     $configBackup = $ConfigPath + ".toolbox-backup-" + [guid]::NewGuid().ToString("N")
     $hadConfig = Test-Path -LiteralPath $ConfigPath -PathType Leaf
     $originalPath = $env:Path
+
+    # Prevent the user's opencode.cmd shim from being found by child processes.
     $env:Path = (($env:Path -split ";") | Where-Object {
         $_ -and -not [string]::Equals($_.TrimEnd([char]92), $ShimDirectory.TrimEnd([char]92), [StringComparison]::OrdinalIgnoreCase)
     }) -join ";"
 
     if ($hadConfig) { Copy-Item -LiteralPath $ConfigPath -Destination $configBackup -Force }
-    New-Item -ItemType Directory -Path $cacheBackup -Force | Out-Null
+    New-Item -ItemType Directory -Path $stagingDirectory -Force | Out-Null
+    New-Item -ItemType Directory -Path $pluginParent -Force | Out-Null
 
     try {
         if ($ConfiguredSpec) {
             & $CliPath plugin remove $ConfiguredSpec
-            if ($LASTEXITCODE -ne 0) { throw "OpenCode could not remove the existing Toolbox package entry." }
+            if ($LASTEXITCODE -ne 0) { throw "OpenCode could not remove the previous package-based Toolbox entry." }
         }
 
-        if (Test-Path -LiteralPath $cacheRoot) {
-            $toolboxCaches = Get-ChildItem -LiteralPath $cacheRoot -Directory -ErrorAction SilentlyContinue | Where-Object { $_.Name -like "git-OpenCode-Toolbox-*" }
-            foreach ($directory in $toolboxCaches) {
-                Move-Item -LiteralPath $directory.FullName -Destination $cacheBackup
-            }
+        $baseUrl = "https://raw.githubusercontent.com/OrionFalls/OpenCode-Toolbox/$Commit"
+        foreach ($file in @("package.json", "index.js", "gui-experimental.cjs")) {
+            Download-ToolboxFile ($baseUrl + "/" + $file) (Join-Path $stagingDirectory $file)
         }
 
-        & $CliPath plugin add $PluginSpec
-        if ($LASTEXITCODE -ne 0) { throw "OpenCode could not install the Toolbox package." }
+        $package = Get-Content -LiteralPath (Join-Path $stagingDirectory "package.json") -Raw | ConvertFrom-Json
+        if ($package.name -ne "opencode-toolbox" -or -not (Test-Path -LiteralPath (Join-Path $stagingDirectory "gui-experimental.cjs"))) {
+            throw "Downloaded Toolbox package did not pass validation."
+        }
+        Set-Content -LiteralPath (Join-Path $stagingDirectory ".toolbox-commit") -Value $Commit -Encoding ASCII
 
-        if (Test-Path -LiteralPath $cacheBackup) { Remove-Item -LiteralPath $cacheBackup -Recurse -Force }
+        if (Test-Path -LiteralPath $pluginDirectory) {
+            Move-Item -LiteralPath $pluginDirectory -Destination $backupDirectory
+        }
+        Move-Item -LiteralPath $stagingDirectory -Destination $pluginDirectory
+
+        if (Test-Path -LiteralPath $backupDirectory) { Remove-Item -LiteralPath $backupDirectory -Recurse -Force -ErrorAction SilentlyContinue }
         if (Test-Path -LiteralPath $configBackup) { Remove-Item -LiteralPath $configBackup -Force }
         return $true
     } catch {
+        if (Test-Path -LiteralPath $pluginDirectory -PathType Container) {
+            Remove-Item -LiteralPath $pluginDirectory -Recurse -Force -ErrorAction SilentlyContinue
+        }
+        if (Test-Path -LiteralPath $backupDirectory) {
+            Move-Item -LiteralPath $backupDirectory -Destination $pluginDirectory -ErrorAction SilentlyContinue
+        }
+        if (Test-Path -LiteralPath $stagingDirectory) {
+            Remove-Item -LiteralPath $stagingDirectory -Recurse -Force -ErrorAction SilentlyContinue
+        }
         if (Test-Path -LiteralPath $configBackup) {
             Copy-Item -LiteralPath $configBackup -Destination $ConfigPath -Force
             Remove-Item -LiteralPath $configBackup -Force
-        }
-        if (Test-Path -LiteralPath $cacheBackup) {
-            if (-not (Test-Path -LiteralPath $cacheRoot)) { New-Item -ItemType Directory -Path $cacheRoot -Force | Out-Null }
-            foreach ($directory in (Get-ChildItem -LiteralPath $cacheBackup -Directory -ErrorAction SilentlyContinue)) {
-                if (-not (Test-Path -LiteralPath (Join-Path $cacheRoot $directory.Name))) {
-                    Move-Item -LiteralPath $directory.FullName -Destination $cacheRoot
-                }
-            }
-            Remove-Item -LiteralPath $cacheBackup -Recurse -Force -ErrorAction SilentlyContinue
         }
         throw
     } finally {
@@ -436,27 +464,31 @@ try {
 Write-Step 3 (T "step3")
 $configPath = Get-ToolboxConfigPath
 $configuredSpec = Get-ConfiguredToolboxSpec $configPath
-$wasUpdate = [bool]$configuredSpec
+$pluginDirectory = Join-Path $env:USERPROFILE ".config\opencode\plugins\opencode-toolbox"
+$localCommit = Get-LocalToolboxCommit $pluginDirectory
+$wasUpdate = [bool]($configuredSpec -or (Test-Path -LiteralPath $pluginDirectory -PathType Container))
+
+Write-Host ("  " + (T "checkingUpdate")) -ForegroundColor Gray
+$remoteCommit = Get-RemoteToolboxCommit
+if (-not $remoteCommit) {
+    Write-Fail (T "updateCheckFailed")
+    Write-Host ("  " + (T "installHelp")) -ForegroundColor Yellow
+    return
+}
+
+if ($wasUpdate -and -not $configuredSpec -and $localCommit -and ($localCommit -eq $remoteCommit)) {
+    Write-Ok (T "noUpdates")
+    return
+}
 
 if ($wasUpdate) {
-    Write-Host ("  " + (T "checkingUpdate")) -ForegroundColor Gray
-    $installedCommit = Get-InstalledToolboxCommit
-    $remoteCommit = Get-RemoteToolboxCommit
-    if ($installedCommit -and $remoteCommit -and ($installedCommit -eq $remoteCommit)) {
-        Write-Ok (T "noUpdates")
-        return
-    }
-    if (-not $remoteCommit) {
-        Write-Warn (T "updateCheckFailed")
-    } else {
-        Write-Host ("  " + (T "updateStart")) -ForegroundColor Gray
-    }
+    Write-Host ("  " + (T "updateStart")) -ForegroundColor Gray
 } else {
     Write-Host ("  " + (T "firstInstall")) -ForegroundColor Gray
 }
 
 try {
-    $null = Invoke-ToolboxInstallOrUpdate $cliPath $configuredSpec $configPath
+    $null = Invoke-ToolboxInstallOrUpdate $cliPath $configuredSpec $configPath $remoteCommit
 } catch {
     Write-Host ""
     if ($wasUpdate) {
