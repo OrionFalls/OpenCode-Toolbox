@@ -120,7 +120,995 @@ function Show-Banner {
 }
 
 function Test-OpenCodeCli([string]$Path) {
-    if ([string]::IsNullOrWhiteSpace($Path) -or -not (Test-Path -LiteralPath $Path -PathType Leaf)) { return $false }
+    if ([string]::IsNullOrWhiteSpace($Path) -or $Path -notmatch '(?i)\.exe
+    try {
+        $output = & $Path --version 2>&1
+        if ($LASTEXITCODE -eq 0) {
+            $script:DetectedVersion = ($output | Out-String).Trim()
+            return $true
+        }
+    } catch { return $false }
+    return $false
+}
+
+function Get-ShortcutTargets {
+    $shell = $null
+    try {
+        $shell = New-Object -ComObject WScript.Shell
+        $roots = @(
+            [Environment]::GetFolderPath("Programs"),
+            [Environment]::GetFolderPath("CommonPrograms"),
+            (Join-Path $env:APPDATA "Microsoft\Windows\Start Menu\Programs"),
+            (Join-Path $env:ProgramData "Microsoft\Windows\Start Menu\Programs")
+        ) | Select-Object -Unique
+        foreach ($root in $roots) {
+            if (-not (Test-Path -LiteralPath $root)) { continue }
+            Get-ChildItem -LiteralPath $root -Filter "*.lnk" -Recurse -ErrorAction SilentlyContinue | ForEach-Object {
+                try {
+                    $shortcut = $shell.CreateShortcut($_.FullName)
+                    if ($shortcut.TargetPath) { $shortcut.TargetPath }
+                } catch {}
+            }
+        }
+    } catch {}
+    finally {
+        if ($shell) { try { [void][Runtime.InteropServices.Marshal]::ReleaseComObject($shell) } catch {} }
+    }
+}
+
+function Find-OpenCodeCli {
+    $candidates = New-Object System.Collections.Generic.List[string]
+    foreach ($name in @("opencode", "opencode-cli")) {
+        $commands = Get-Command $name -CommandType Application -ErrorAction SilentlyContinue
+        foreach ($command in $commands) {
+            if ($command.Source -and $command.Source -match '(?i)\.exe
+    }
+
+    $desktopCliRoot = Join-Path $env:APPDATA "ai.opencode.desktop\cli"
+    if (Test-Path -LiteralPath $desktopCliRoot) {
+        Get-ChildItem -LiteralPath $desktopCliRoot -Directory -ErrorAction SilentlyContinue |
+            Sort-Object LastWriteTime -Descending | ForEach-Object {
+                foreach ($file in @("opencode-cli.exe", "opencode.exe")) {
+                    $candidate = Join-Path $_.FullName $file
+                    if (Test-Path -LiteralPath $candidate -PathType Leaf) { $candidates.Add($candidate) }
+                }
+            }
+    }
+
+    $programFilesX86 = [Environment]::GetEnvironmentVariable("ProgramFiles(x86)")
+    $knownFiles = @(
+        (Join-Path $env:LOCALAPPDATA "Programs\OpenCode\opencode.exe"),
+        (Join-Path $env:LOCALAPPDATA "Programs\OpenCode\opencode-cli.exe"),
+        (Join-Path $env:LOCALAPPDATA "OpenCode\opencode.exe"),
+        (Join-Path $env:LOCALAPPDATA "OpenCode\opencode-cli.exe"),
+        (Join-Path $env:ProgramFiles "OpenCode\opencode.exe"),
+        (Join-Path $env:ProgramFiles "OpenCode\opencode-cli.exe")
+    )
+    if ($programFilesX86) {
+        $knownFiles += @(
+            (Join-Path $programFilesX86 "OpenCode\opencode.exe"),
+            (Join-Path $programFilesX86 "OpenCode\opencode-cli.exe")
+        )
+    }
+    foreach ($candidate in $knownFiles) {
+        if ($candidate -and (Test-Path -LiteralPath $candidate -PathType Leaf)) { $candidates.Add($candidate) }
+    }
+
+    $registryKeys = @(
+        "HKCU:\Software\Microsoft\Windows\CurrentVersion\App Paths\opencode.exe",
+        "HKLM:\Software\Microsoft\Windows\CurrentVersion\App Paths\opencode.exe",
+        "HKLM:\Software\WOW6432Node\Microsoft\Windows\CurrentVersion\App Paths\opencode.exe"
+    )
+    foreach ($key in $registryKeys) {
+        if (Test-Path $key) {
+            $value = (Get-Item $key).GetValue("")
+            if ($value) { $candidates.Add([string]$value) }
+        }
+    }
+
+    foreach ($target in (Get-ShortcutTargets)) {
+        if ($target -match '(?i)opencode.*\.exe$' -and (Test-Path -LiteralPath $target -PathType Leaf)) {
+            $candidates.Add($target)
+        }
+    }
+
+    $seen = @{}
+    foreach ($candidate in $candidates) {
+        if (-not $candidate) { continue }
+        $full = [Environment]::ExpandEnvironmentVariables($candidate.Trim('"'))
+        if ($seen.ContainsKey($full)) { continue }
+        $seen[$full] = $true
+        if (Test-OpenCodeCli $full) { return $full }
+    }
+    return $null
+}
+
+function Request-ManualCliPath {
+    Write-Warn (T "locating")
+    Write-Host ("  " + (T "choose")) -ForegroundColor Gray
+    try {
+        Add-Type -AssemblyName System.Windows.Forms -ErrorAction Stop
+        $dialog = New-Object System.Windows.Forms.OpenFileDialog
+        $dialog.Title = T "choose"
+        $dialog.Filter = 'OpenCode CLI (opencode.exe;opencode-cli.exe)|opencode.exe;opencode-cli.exe|Executable files (*.exe)|*.exe'
+        $dialog.CheckFileExists = $true
+        $dialog.Multiselect = $false
+        if ($dialog.ShowDialog() -eq [System.Windows.Forms.DialogResult]::OK) { return $dialog.FileName }
+    } catch {
+        Write-Host ("  " + (T "pickerUnavailable")) -ForegroundColor Gray
+    }
+    $manual = Read-Host (T "enterPath")
+    if ([string]::IsNullOrWhiteSpace($manual)) { return $null }
+    return $manual.Trim().Trim('"')
+}
+
+function Add-UserPath([string]$Directory) {
+    $currentUserPath = [Environment]::GetEnvironmentVariable("Path", "User")
+    $entries = @()
+    if ($currentUserPath) { $entries = $currentUserPath -split ";" | Where-Object { $_ } }
+
+    $alreadyPresent = $false
+    foreach ($entry in $entries) {
+        if ([string]::Equals($entry.TrimEnd([char]92), $Directory.TrimEnd([char]92), [StringComparison]::OrdinalIgnoreCase)) {
+            $alreadyPresent = $true
+            break
+        }
+    }
+    if (-not $alreadyPresent) {
+        [Environment]::SetEnvironmentVariable("Path", ((@($entries) + $Directory) -join ";"), "User")
+    }
+    if (($env:Path -split ";") -notcontains $Directory) { $env:Path = $env:Path.TrimEnd(";") + ";" + $Directory }
+    return (-not $alreadyPresent)
+}
+
+function Install-CommandShim([string]$CliPath) {
+    New-Item -ItemType Directory -Path $ShimDirectory -Force | Out-Null
+    $shim = @"
+@echo off
+setlocal
+set "OPENCODE_CLI=$CliPath"
+"%OPENCODE_CLI%" %*
+exit /b %ERRORLEVEL%
+"@
+    Set-Content -LiteralPath $ShimPath -Value $shim -Encoding ASCII
+    return (Add-UserPath $ShimDirectory)
+}
+
+function Get-ToolboxConfigPath {
+    $candidates = @(
+        (Join-Path $env:USERPROFILE ".config\opencode\opencode.json"),
+        (Join-Path $env:USERPROFILE ".config\opencode\opencode.jsonc"),
+        (Join-Path $env:APPDATA "opencode\opencode.json"),
+        (Join-Path $env:APPDATA "opencode\opencode.jsonc")
+    )
+    foreach ($candidate in $candidates) {
+        if (Test-Path -LiteralPath $candidate -PathType Leaf) { return $candidate }
+    }
+    return $candidates[0]
+}
+
+function Get-ConfiguredToolboxSpec([string]$ConfigPath) {
+    if (-not (Test-Path -LiteralPath $ConfigPath -PathType Leaf)) { return $null }
+    $raw = Get-Content -LiteralPath $ConfigPath -Raw
+    $knownSpecs = @(
+        "git+https://github.com/OrionFalls/OpenCode-Toolbox.git#main",
+        "https://github.com/OrionFalls/OpenCode-Toolbox.git#main",
+        "github:OrionFalls/OpenCode-Toolbox#main"
+    )
+    foreach ($candidate in $knownSpecs) {
+        if ($raw.Contains($candidate)) { return $candidate }
+    }
+    return $null
+}
+
+function Get-InstalledToolboxCommit {
+    $cacheRoot = Join-Path $env:USERPROFILE ".cache\opencode\npm"
+    if (-not (Test-Path -LiteralPath $cacheRoot)) { return $null }
+    $lockFiles = @()
+    $cacheDirs = Get-ChildItem -LiteralPath $cacheRoot -Directory -ErrorAction SilentlyContinue | Where-Object { $_.Name -like "git-OpenCode-Toolbox-*" }
+    foreach ($directory in $cacheDirs) {
+        $lockFiles += Get-ChildItem -LiteralPath $directory.FullName -Filter "package-lock.json" -File -Recurse -ErrorAction SilentlyContinue
+    }
+    $latestLock = $lockFiles | Sort-Object LastWriteTime -Descending | Select-Object -First 1
+    if (-not $latestLock) { return $null }
+    $lockText = Get-Content -LiteralPath $latestLock.FullName -Raw
+    $match = [regex]::Match($lockText, 'git\+(?:ssh|https?)://[^"#]+#([0-9a-f]{40})')
+    if ($match.Success) { return $match.Groups[1].Value }
+    return $null
+}
+
+function Get-RemoteToolboxCommit {
+    try {
+        [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
+        $response = Invoke-RestMethod -Uri "https://api.github.com/repos/OrionFalls/OpenCode-Toolbox/commits/main" -Headers @{ "User-Agent" = "OpenCode-Toolbox-Installer" } -TimeoutSec 15
+        return [string]$response.sha
+    } catch {
+        return $null
+    }
+}
+
+function Invoke-ToolboxInstallOrUpdate([string]$CliPath, [string]$ConfiguredSpec, [string]$ConfigPath) {
+    $cacheRoot = Join-Path $env:USERPROFILE ".cache\opencode\npm"
+    $cacheBackup = Join-Path $env:TEMP ("opencode-toolbox-cache-" + [guid]::NewGuid().ToString("N"))
+    $configBackup = $ConfigPath + ".toolbox-backup-" + [guid]::NewGuid().ToString("N")
+    $hadConfig = Test-Path -LiteralPath $ConfigPath -PathType Leaf
+
+    if ($hadConfig) { Copy-Item -LiteralPath $ConfigPath -Destination $configBackup -Force }
+    New-Item -ItemType Directory -Path $cacheBackup -Force | Out-Null
+
+    try {
+        if ($ConfiguredSpec) {
+            & $CliPath plugin remove $ConfiguredSpec
+            if ($LASTEXITCODE -ne 0) { throw "OpenCode could not remove the existing Toolbox package entry." }
+        }
+
+        if (Test-Path -LiteralPath $cacheRoot) {
+            $toolboxCaches = Get-ChildItem -LiteralPath $cacheRoot -Directory -ErrorAction SilentlyContinue | Where-Object { $_.Name -like "git-OpenCode-Toolbox-*" }
+            foreach ($directory in $toolboxCaches) {
+                Move-Item -LiteralPath $directory.FullName -Destination $cacheBackup
+            }
+        }
+
+        & $CliPath plugin add $PluginSpec
+        if ($LASTEXITCODE -ne 0) { throw "OpenCode could not install the Toolbox package." }
+
+        if (Test-Path -LiteralPath $cacheBackup) { Remove-Item -LiteralPath $cacheBackup -Recurse -Force }
+        if (Test-Path -LiteralPath $configBackup) { Remove-Item -LiteralPath $configBackup -Force }
+        return $true
+    } catch {
+        if (Test-Path -LiteralPath $configBackup) {
+            Copy-Item -LiteralPath $configBackup -Destination $ConfigPath -Force
+            Remove-Item -LiteralPath $configBackup -Force
+        }
+        if (Test-Path -LiteralPath $cacheBackup) {
+            if (-not (Test-Path -LiteralPath $cacheRoot)) { New-Item -ItemType Directory -Path $cacheRoot -Force | Out-Null }
+            foreach ($directory in (Get-ChildItem -LiteralPath $cacheBackup -Directory -ErrorAction SilentlyContinue)) {
+                if (-not (Test-Path -LiteralPath (Join-Path $cacheRoot $directory.Name))) {
+                    Move-Item -LiteralPath $directory.FullName -Destination $cacheRoot
+                }
+            }
+            Remove-Item -LiteralPath $cacheBackup -Recurse -Force -ErrorAction SilentlyContinue
+        }
+        throw
+    }
+}
+
+function Show-Success([bool]$WasUpdate = $false) {
+    Write-Host ""
+    Write-Host ""
+    Write-Host ("       " + (T "successTitle")) -ForegroundColor Green
+    if ($WasUpdate) {
+        Write-Host ("       " + (T "updatedBody")) -ForegroundColor White
+    } else {
+        Write-Host ("       " + (T "successBody")) -ForegroundColor White
+    }
+    Write-Host ""
+    Write-Host ("  " + (T "next")) -ForegroundColor Cyan
+    Write-Host ("    1. " + (T "next1")) -ForegroundColor White
+    Write-Host ("    2. " + (T "next2")) -ForegroundColor White
+    Write-Host ("    3. " + (T "next3")) -ForegroundColor White
+    Write-Host ""
+    Write-Host ("  " + (T "close")) -ForegroundColor Green
+    Write-Host ""
+}
+
+Show-Banner
+Write-Step 1 (T "step1")
+$cliPath = Find-OpenCodeCli
+while (-not $cliPath) {
+    $manualPath = Request-ManualCliPath
+    if (-not $manualPath) {
+        Write-Host ""
+        Write-Warn (T "cancelled")
+        return
+    }
+    if (Test-OpenCodeCli $manualPath) {
+        $cliPath = (Resolve-Path -LiteralPath $manualPath).Path
+    } else {
+        Write-Fail (T "invalidPath")
+    }
+}
+Write-Ok (T "found")
+Write-Host ("  " + (T "version") + ": " + $script:DetectedVersion) -ForegroundColor Gray
+if ($ValidateOnly) {
+    return
+}
+
+Write-Step 2 (T "step2")
+try {
+    $pathWasAdded = Install-CommandShim $cliPath
+    if ($pathWasAdded) { Write-Ok (T "pathAdded") } else { Write-Ok (T "pathExists") }
+} catch {
+    Write-Warn (T "error")
+    Write-Host ("  " + $_.Exception.Message) -ForegroundColor DarkGray
+    Write-Host ("  " + (T "newTerminal")) -ForegroundColor Gray
+}
+
+Write-Step 3 (T "step3")
+$configPath = Get-ToolboxConfigPath
+$configuredSpec = Get-ConfiguredToolboxSpec $configPath
+$wasUpdate = [bool]$configuredSpec
+
+if ($wasUpdate) {
+    Write-Host ("  " + (T "checkingUpdate")) -ForegroundColor Gray
+    $installedCommit = Get-InstalledToolboxCommit
+    $remoteCommit = Get-RemoteToolboxCommit
+    if ($installedCommit -and $remoteCommit -and ($installedCommit -eq $remoteCommit)) {
+        Write-Ok (T "noUpdates")
+        return
+    }
+    if (-not $remoteCommit) {
+        Write-Warn (T "updateCheckFailed")
+    } else {
+        Write-Host ("  " + (T "updateStart")) -ForegroundColor Gray
+    }
+} else {
+    Write-Host ("  " + (T "firstInstall")) -ForegroundColor Gray
+}
+
+try {
+    $null = Invoke-ToolboxInstallOrUpdate $cliPath $configuredSpec $configPath
+} catch {
+    Write-Host ""
+    if ($wasUpdate) {
+        Write-Fail (T "updateFailed")
+    } else {
+        Write-Fail (T "installFailed")
+    }
+    Write-Host ("  " + (T "errorDetails") + ": " + $_.Exception.Message) -ForegroundColor DarkGray
+    Write-Host ("  " + (T "installHelp")) -ForegroundColor Yellow
+    Write-Host ""
+    return
+}
+
+Show-Success -WasUpdate:$wasUpdate
+ -or -not (Test-Path -LiteralPath $Path -PathType Leaf)) { return $false }
+    try {
+        $output = & $Path --version 2>&1
+        if ($LASTEXITCODE -eq 0) {
+            $script:DetectedVersion = ($output | Out-String).Trim()
+            return $true
+        }
+    } catch { return $false }
+    return $false
+}
+
+function Get-ShortcutTargets {
+    $shell = $null
+    try {
+        $shell = New-Object -ComObject WScript.Shell
+        $roots = @(
+            [Environment]::GetFolderPath("Programs"),
+            [Environment]::GetFolderPath("CommonPrograms"),
+            (Join-Path $env:APPDATA "Microsoft\Windows\Start Menu\Programs"),
+            (Join-Path $env:ProgramData "Microsoft\Windows\Start Menu\Programs")
+        ) | Select-Object -Unique
+        foreach ($root in $roots) {
+            if (-not (Test-Path -LiteralPath $root)) { continue }
+            Get-ChildItem -LiteralPath $root -Filter "*.lnk" -Recurse -ErrorAction SilentlyContinue | ForEach-Object {
+                try {
+                    $shortcut = $shell.CreateShortcut($_.FullName)
+                    if ($shortcut.TargetPath) { $shortcut.TargetPath }
+                } catch {}
+            }
+        }
+    } catch {}
+    finally {
+        if ($shell) { try { [void][Runtime.InteropServices.Marshal]::ReleaseComObject($shell) } catch {} }
+    }
+}
+
+function Find-OpenCodeCli {
+    $candidates = New-Object System.Collections.Generic.List[string]
+    foreach ($name in @("opencode", "opencode-cli")) {
+        $commands = Get-Command $name -CommandType Application -ErrorAction SilentlyContinue
+        foreach ($command in $commands) { if ($command.Source) { $candidates.Add($command.Source) } }
+    }
+
+    $desktopCliRoot = Join-Path $env:APPDATA "ai.opencode.desktop\cli"
+    if (Test-Path -LiteralPath $desktopCliRoot) {
+        Get-ChildItem -LiteralPath $desktopCliRoot -Directory -ErrorAction SilentlyContinue |
+            Sort-Object LastWriteTime -Descending | ForEach-Object {
+                foreach ($file in @("opencode-cli.exe", "opencode.exe")) {
+                    $candidate = Join-Path $_.FullName $file
+                    if (Test-Path -LiteralPath $candidate -PathType Leaf) { $candidates.Add($candidate) }
+                }
+            }
+    }
+
+    $programFilesX86 = [Environment]::GetEnvironmentVariable("ProgramFiles(x86)")
+    $knownFiles = @(
+        (Join-Path $env:LOCALAPPDATA "Programs\OpenCode\opencode.exe"),
+        (Join-Path $env:LOCALAPPDATA "Programs\OpenCode\opencode-cli.exe"),
+        (Join-Path $env:LOCALAPPDATA "OpenCode\opencode.exe"),
+        (Join-Path $env:LOCALAPPDATA "OpenCode\opencode-cli.exe"),
+        (Join-Path $env:ProgramFiles "OpenCode\opencode.exe"),
+        (Join-Path $env:ProgramFiles "OpenCode\opencode-cli.exe")
+    )
+    if ($programFilesX86) {
+        $knownFiles += @(
+            (Join-Path $programFilesX86 "OpenCode\opencode.exe"),
+            (Join-Path $programFilesX86 "OpenCode\opencode-cli.exe")
+        )
+    }
+    foreach ($candidate in $knownFiles) {
+        if ($candidate -and (Test-Path -LiteralPath $candidate -PathType Leaf)) { $candidates.Add($candidate) }
+    }
+
+    $registryKeys = @(
+        "HKCU:\Software\Microsoft\Windows\CurrentVersion\App Paths\opencode.exe",
+        "HKLM:\Software\Microsoft\Windows\CurrentVersion\App Paths\opencode.exe",
+        "HKLM:\Software\WOW6432Node\Microsoft\Windows\CurrentVersion\App Paths\opencode.exe"
+    )
+    foreach ($key in $registryKeys) {
+        if (Test-Path $key) {
+            $value = (Get-Item $key).GetValue("")
+            if ($value) { $candidates.Add([string]$value) }
+        }
+    }
+
+    foreach ($target in (Get-ShortcutTargets)) {
+        if ($target -match '(?i)opencode.*\.exe$' -and (Test-Path -LiteralPath $target -PathType Leaf)) {
+            $candidates.Add($target)
+        }
+    }
+
+    $seen = @{}
+    foreach ($candidate in $candidates) {
+        if (-not $candidate) { continue }
+        $full = [Environment]::ExpandEnvironmentVariables($candidate.Trim('"'))
+        if ($seen.ContainsKey($full)) { continue }
+        $seen[$full] = $true
+        if (Test-OpenCodeCli $full) { return $full }
+    }
+    return $null
+}
+
+function Request-ManualCliPath {
+    Write-Warn (T "locating")
+    Write-Host ("  " + (T "choose")) -ForegroundColor Gray
+    try {
+        Add-Type -AssemblyName System.Windows.Forms -ErrorAction Stop
+        $dialog = New-Object System.Windows.Forms.OpenFileDialog
+        $dialog.Title = T "choose"
+        $dialog.Filter = 'OpenCode CLI (opencode.exe;opencode-cli.exe)|opencode.exe;opencode-cli.exe|Executable files (*.exe)|*.exe'
+        $dialog.CheckFileExists = $true
+        $dialog.Multiselect = $false
+        if ($dialog.ShowDialog() -eq [System.Windows.Forms.DialogResult]::OK) { return $dialog.FileName }
+    } catch {
+        Write-Host ("  " + (T "pickerUnavailable")) -ForegroundColor Gray
+    }
+    $manual = Read-Host (T "enterPath")
+    if ([string]::IsNullOrWhiteSpace($manual)) { return $null }
+    return $manual.Trim().Trim('"')
+}
+
+function Add-UserPath([string]$Directory) {
+    $currentUserPath = [Environment]::GetEnvironmentVariable("Path", "User")
+    $entries = @()
+    if ($currentUserPath) { $entries = $currentUserPath -split ";" | Where-Object { $_ } }
+
+    $alreadyPresent = $false
+    foreach ($entry in $entries) {
+        if ([string]::Equals($entry.TrimEnd([char]92), $Directory.TrimEnd([char]92), [StringComparison]::OrdinalIgnoreCase)) {
+            $alreadyPresent = $true
+            break
+        }
+    }
+    if (-not $alreadyPresent) {
+        [Environment]::SetEnvironmentVariable("Path", ((@($entries) + $Directory) -join ";"), "User")
+    }
+    if (($env:Path -split ";") -notcontains $Directory) { $env:Path = $env:Path.TrimEnd(";") + ";" + $Directory }
+    return (-not $alreadyPresent)
+}
+
+function Install-CommandShim([string]$CliPath) {
+    New-Item -ItemType Directory -Path $ShimDirectory -Force | Out-Null
+    $shim = @"
+@echo off
+setlocal
+set "OPENCODE_CLI=$CliPath"
+"%OPENCODE_CLI%" %*
+exit /b %ERRORLEVEL%
+"@
+    Set-Content -LiteralPath $ShimPath -Value $shim -Encoding ASCII
+    return (Add-UserPath $ShimDirectory)
+}
+
+function Get-ToolboxConfigPath {
+    $candidates = @(
+        (Join-Path $env:USERPROFILE ".config\opencode\opencode.json"),
+        (Join-Path $env:USERPROFILE ".config\opencode\opencode.jsonc"),
+        (Join-Path $env:APPDATA "opencode\opencode.json"),
+        (Join-Path $env:APPDATA "opencode\opencode.jsonc")
+    )
+    foreach ($candidate in $candidates) {
+        if (Test-Path -LiteralPath $candidate -PathType Leaf) { return $candidate }
+    }
+    return $candidates[0]
+}
+
+function Get-ConfiguredToolboxSpec([string]$ConfigPath) {
+    if (-not (Test-Path -LiteralPath $ConfigPath -PathType Leaf)) { return $null }
+    $raw = Get-Content -LiteralPath $ConfigPath -Raw
+    $knownSpecs = @(
+        "git+https://github.com/OrionFalls/OpenCode-Toolbox.git#main",
+        "https://github.com/OrionFalls/OpenCode-Toolbox.git#main",
+        "github:OrionFalls/OpenCode-Toolbox#main"
+    )
+    foreach ($candidate in $knownSpecs) {
+        if ($raw.Contains($candidate)) { return $candidate }
+    }
+    return $null
+}
+
+function Get-InstalledToolboxCommit {
+    $cacheRoot = Join-Path $env:USERPROFILE ".cache\opencode\npm"
+    if (-not (Test-Path -LiteralPath $cacheRoot)) { return $null }
+    $lockFiles = @()
+    $cacheDirs = Get-ChildItem -LiteralPath $cacheRoot -Directory -ErrorAction SilentlyContinue | Where-Object { $_.Name -like "git-OpenCode-Toolbox-*" }
+    foreach ($directory in $cacheDirs) {
+        $lockFiles += Get-ChildItem -LiteralPath $directory.FullName -Filter "package-lock.json" -File -Recurse -ErrorAction SilentlyContinue
+    }
+    $latestLock = $lockFiles | Sort-Object LastWriteTime -Descending | Select-Object -First 1
+    if (-not $latestLock) { return $null }
+    $lockText = Get-Content -LiteralPath $latestLock.FullName -Raw
+    $match = [regex]::Match($lockText, 'git\+(?:ssh|https?)://[^"#]+#([0-9a-f]{40})')
+    if ($match.Success) { return $match.Groups[1].Value }
+    return $null
+}
+
+function Get-RemoteToolboxCommit {
+    try {
+        [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
+        $response = Invoke-RestMethod -Uri "https://api.github.com/repos/OrionFalls/OpenCode-Toolbox/commits/main" -Headers @{ "User-Agent" = "OpenCode-Toolbox-Installer" } -TimeoutSec 15
+        return [string]$response.sha
+    } catch {
+        return $null
+    }
+}
+
+function Invoke-ToolboxInstallOrUpdate([string]$CliPath, [string]$ConfiguredSpec, [string]$ConfigPath) {
+    $cacheRoot = Join-Path $env:USERPROFILE ".cache\opencode\npm"
+    $cacheBackup = Join-Path $env:TEMP ("opencode-toolbox-cache-" + [guid]::NewGuid().ToString("N"))
+    $configBackup = $ConfigPath + ".toolbox-backup-" + [guid]::NewGuid().ToString("N")
+    $hadConfig = Test-Path -LiteralPath $ConfigPath -PathType Leaf
+
+    if ($hadConfig) { Copy-Item -LiteralPath $ConfigPath -Destination $configBackup -Force }
+    New-Item -ItemType Directory -Path $cacheBackup -Force | Out-Null
+
+    try {
+        if ($ConfiguredSpec) {
+            & $CliPath plugin remove $ConfiguredSpec
+            if ($LASTEXITCODE -ne 0) { throw "OpenCode could not remove the existing Toolbox package entry." }
+        }
+
+        if (Test-Path -LiteralPath $cacheRoot) {
+            $toolboxCaches = Get-ChildItem -LiteralPath $cacheRoot -Directory -ErrorAction SilentlyContinue | Where-Object { $_.Name -like "git-OpenCode-Toolbox-*" }
+            foreach ($directory in $toolboxCaches) {
+                Move-Item -LiteralPath $directory.FullName -Destination $cacheBackup
+            }
+        }
+
+        & $CliPath plugin add $PluginSpec
+        if ($LASTEXITCODE -ne 0) { throw "OpenCode could not install the Toolbox package." }
+
+        if (Test-Path -LiteralPath $cacheBackup) { Remove-Item -LiteralPath $cacheBackup -Recurse -Force }
+        if (Test-Path -LiteralPath $configBackup) { Remove-Item -LiteralPath $configBackup -Force }
+        return $true
+    } catch {
+        if (Test-Path -LiteralPath $configBackup) {
+            Copy-Item -LiteralPath $configBackup -Destination $ConfigPath -Force
+            Remove-Item -LiteralPath $configBackup -Force
+        }
+        if (Test-Path -LiteralPath $cacheBackup) {
+            if (-not (Test-Path -LiteralPath $cacheRoot)) { New-Item -ItemType Directory -Path $cacheRoot -Force | Out-Null }
+            foreach ($directory in (Get-ChildItem -LiteralPath $cacheBackup -Directory -ErrorAction SilentlyContinue)) {
+                if (-not (Test-Path -LiteralPath (Join-Path $cacheRoot $directory.Name))) {
+                    Move-Item -LiteralPath $directory.FullName -Destination $cacheRoot
+                }
+            }
+            Remove-Item -LiteralPath $cacheBackup -Recurse -Force -ErrorAction SilentlyContinue
+        }
+        throw
+    }
+}
+
+function Show-Success([bool]$WasUpdate = $false) {
+    Write-Host ""
+    Write-Host ""
+    Write-Host ("       " + (T "successTitle")) -ForegroundColor Green
+    if ($WasUpdate) {
+        Write-Host ("       " + (T "updatedBody")) -ForegroundColor White
+    } else {
+        Write-Host ("       " + (T "successBody")) -ForegroundColor White
+    }
+    Write-Host ""
+    Write-Host ("  " + (T "next")) -ForegroundColor Cyan
+    Write-Host ("    1. " + (T "next1")) -ForegroundColor White
+    Write-Host ("    2. " + (T "next2")) -ForegroundColor White
+    Write-Host ("    3. " + (T "next3")) -ForegroundColor White
+    Write-Host ""
+    Write-Host ("  " + (T "close")) -ForegroundColor Green
+    Write-Host ""
+}
+
+Show-Banner
+Write-Step 1 (T "step1")
+$cliPath = Find-OpenCodeCli
+while (-not $cliPath) {
+    $manualPath = Request-ManualCliPath
+    if (-not $manualPath) {
+        Write-Host ""
+        Write-Warn (T "cancelled")
+        return
+    }
+    if (Test-OpenCodeCli $manualPath) {
+        $cliPath = (Resolve-Path -LiteralPath $manualPath).Path
+    } else {
+        Write-Fail (T "invalidPath")
+    }
+}
+Write-Ok (T "found")
+Write-Host ("  " + (T "version") + ": " + $script:DetectedVersion) -ForegroundColor Gray
+if ($ValidateOnly) {
+    return
+}
+
+Write-Step 2 (T "step2")
+try {
+    $pathWasAdded = Install-CommandShim $cliPath
+    if ($pathWasAdded) { Write-Ok (T "pathAdded") } else { Write-Ok (T "pathExists") }
+} catch {
+    Write-Warn (T "error")
+    Write-Host ("  " + $_.Exception.Message) -ForegroundColor DarkGray
+    Write-Host ("  " + (T "newTerminal")) -ForegroundColor Gray
+}
+
+Write-Step 3 (T "step3")
+$configPath = Get-ToolboxConfigPath
+$configuredSpec = Get-ConfiguredToolboxSpec $configPath
+$wasUpdate = [bool]$configuredSpec
+
+if ($wasUpdate) {
+    Write-Host ("  " + (T "checkingUpdate")) -ForegroundColor Gray
+    $installedCommit = Get-InstalledToolboxCommit
+    $remoteCommit = Get-RemoteToolboxCommit
+    if ($installedCommit -and $remoteCommit -and ($installedCommit -eq $remoteCommit)) {
+        Write-Ok (T "noUpdates")
+        return
+    }
+    if (-not $remoteCommit) {
+        Write-Warn (T "updateCheckFailed")
+    } else {
+        Write-Host ("  " + (T "updateStart")) -ForegroundColor Gray
+    }
+} else {
+    Write-Host ("  " + (T "firstInstall")) -ForegroundColor Gray
+}
+
+try {
+    $null = Invoke-ToolboxInstallOrUpdate $cliPath $configuredSpec $configPath
+} catch {
+    Write-Host ""
+    if ($wasUpdate) {
+        Write-Fail (T "updateFailed")
+    } else {
+        Write-Fail (T "installFailed")
+    }
+    Write-Host ("  " + (T "errorDetails") + ": " + $_.Exception.Message) -ForegroundColor DarkGray
+    Write-Host ("  " + (T "installHelp")) -ForegroundColor Yellow
+    Write-Host ""
+    return
+}
+
+Show-Success -WasUpdate:$wasUpdate
+ -and
+                -not [string]::Equals($command.Source, $ShimPath, [StringComparison]::OrdinalIgnoreCase)) {
+                $candidates.Add($command.Source)
+            }
+        }
+    }
+
+    $desktopCliRoot = Join-Path $env:APPDATA "ai.opencode.desktop\cli"
+    if (Test-Path -LiteralPath $desktopCliRoot) {
+        Get-ChildItem -LiteralPath $desktopCliRoot -Directory -ErrorAction SilentlyContinue |
+            Sort-Object LastWriteTime -Descending | ForEach-Object {
+                foreach ($file in @("opencode-cli.exe", "opencode.exe")) {
+                    $candidate = Join-Path $_.FullName $file
+                    if (Test-Path -LiteralPath $candidate -PathType Leaf) { $candidates.Add($candidate) }
+                }
+            }
+    }
+
+    $programFilesX86 = [Environment]::GetEnvironmentVariable("ProgramFiles(x86)")
+    $knownFiles = @(
+        (Join-Path $env:LOCALAPPDATA "Programs\OpenCode\opencode.exe"),
+        (Join-Path $env:LOCALAPPDATA "Programs\OpenCode\opencode-cli.exe"),
+        (Join-Path $env:LOCALAPPDATA "OpenCode\opencode.exe"),
+        (Join-Path $env:LOCALAPPDATA "OpenCode\opencode-cli.exe"),
+        (Join-Path $env:ProgramFiles "OpenCode\opencode.exe"),
+        (Join-Path $env:ProgramFiles "OpenCode\opencode-cli.exe")
+    )
+    if ($programFilesX86) {
+        $knownFiles += @(
+            (Join-Path $programFilesX86 "OpenCode\opencode.exe"),
+            (Join-Path $programFilesX86 "OpenCode\opencode-cli.exe")
+        )
+    }
+    foreach ($candidate in $knownFiles) {
+        if ($candidate -and (Test-Path -LiteralPath $candidate -PathType Leaf)) { $candidates.Add($candidate) }
+    }
+
+    $registryKeys = @(
+        "HKCU:\Software\Microsoft\Windows\CurrentVersion\App Paths\opencode.exe",
+        "HKLM:\Software\Microsoft\Windows\CurrentVersion\App Paths\opencode.exe",
+        "HKLM:\Software\WOW6432Node\Microsoft\Windows\CurrentVersion\App Paths\opencode.exe"
+    )
+    foreach ($key in $registryKeys) {
+        if (Test-Path $key) {
+            $value = (Get-Item $key).GetValue("")
+            if ($value) { $candidates.Add([string]$value) }
+        }
+    }
+
+    foreach ($target in (Get-ShortcutTargets)) {
+        if ($target -match '(?i)opencode.*\.exe$' -and (Test-Path -LiteralPath $target -PathType Leaf)) {
+            $candidates.Add($target)
+        }
+    }
+
+    $seen = @{}
+    foreach ($candidate in $candidates) {
+        if (-not $candidate) { continue }
+        $full = [Environment]::ExpandEnvironmentVariables($candidate.Trim('"'))
+        if ($seen.ContainsKey($full)) { continue }
+        $seen[$full] = $true
+        if (Test-OpenCodeCli $full) { return $full }
+    }
+    return $null
+}
+
+function Request-ManualCliPath {
+    Write-Warn (T "locating")
+    Write-Host ("  " + (T "choose")) -ForegroundColor Gray
+    try {
+        Add-Type -AssemblyName System.Windows.Forms -ErrorAction Stop
+        $dialog = New-Object System.Windows.Forms.OpenFileDialog
+        $dialog.Title = T "choose"
+        $dialog.Filter = 'OpenCode CLI (opencode.exe;opencode-cli.exe)|opencode.exe;opencode-cli.exe|Executable files (*.exe)|*.exe'
+        $dialog.CheckFileExists = $true
+        $dialog.Multiselect = $false
+        if ($dialog.ShowDialog() -eq [System.Windows.Forms.DialogResult]::OK) { return $dialog.FileName }
+    } catch {
+        Write-Host ("  " + (T "pickerUnavailable")) -ForegroundColor Gray
+    }
+    $manual = Read-Host (T "enterPath")
+    if ([string]::IsNullOrWhiteSpace($manual)) { return $null }
+    return $manual.Trim().Trim('"')
+}
+
+function Add-UserPath([string]$Directory) {
+    $currentUserPath = [Environment]::GetEnvironmentVariable("Path", "User")
+    $entries = @()
+    if ($currentUserPath) { $entries = $currentUserPath -split ";" | Where-Object { $_ } }
+
+    $alreadyPresent = $false
+    foreach ($entry in $entries) {
+        if ([string]::Equals($entry.TrimEnd([char]92), $Directory.TrimEnd([char]92), [StringComparison]::OrdinalIgnoreCase)) {
+            $alreadyPresent = $true
+            break
+        }
+    }
+    if (-not $alreadyPresent) {
+        [Environment]::SetEnvironmentVariable("Path", ((@($entries) + $Directory) -join ";"), "User")
+    }
+    if (($env:Path -split ";") -notcontains $Directory) { $env:Path = $env:Path.TrimEnd(";") + ";" + $Directory }
+    return (-not $alreadyPresent)
+}
+
+function Install-CommandShim([string]$CliPath) {
+    New-Item -ItemType Directory -Path $ShimDirectory -Force | Out-Null
+    $shim = @"
+@echo off
+setlocal
+set "OPENCODE_CLI=$CliPath"
+"%OPENCODE_CLI%" %*
+exit /b %ERRORLEVEL%
+"@
+    Set-Content -LiteralPath $ShimPath -Value $shim -Encoding ASCII
+    return (Add-UserPath $ShimDirectory)
+}
+
+function Get-ToolboxConfigPath {
+    $candidates = @(
+        (Join-Path $env:USERPROFILE ".config\opencode\opencode.json"),
+        (Join-Path $env:USERPROFILE ".config\opencode\opencode.jsonc"),
+        (Join-Path $env:APPDATA "opencode\opencode.json"),
+        (Join-Path $env:APPDATA "opencode\opencode.jsonc")
+    )
+    foreach ($candidate in $candidates) {
+        if (Test-Path -LiteralPath $candidate -PathType Leaf) { return $candidate }
+    }
+    return $candidates[0]
+}
+
+function Get-ConfiguredToolboxSpec([string]$ConfigPath) {
+    if (-not (Test-Path -LiteralPath $ConfigPath -PathType Leaf)) { return $null }
+    $raw = Get-Content -LiteralPath $ConfigPath -Raw
+    $knownSpecs = @(
+        "git+https://github.com/OrionFalls/OpenCode-Toolbox.git#main",
+        "https://github.com/OrionFalls/OpenCode-Toolbox.git#main",
+        "github:OrionFalls/OpenCode-Toolbox#main"
+    )
+    foreach ($candidate in $knownSpecs) {
+        if ($raw.Contains($candidate)) { return $candidate }
+    }
+    return $null
+}
+
+function Get-InstalledToolboxCommit {
+    $cacheRoot = Join-Path $env:USERPROFILE ".cache\opencode\npm"
+    if (-not (Test-Path -LiteralPath $cacheRoot)) { return $null }
+    $lockFiles = @()
+    $cacheDirs = Get-ChildItem -LiteralPath $cacheRoot -Directory -ErrorAction SilentlyContinue | Where-Object { $_.Name -like "git-OpenCode-Toolbox-*" }
+    foreach ($directory in $cacheDirs) {
+        $lockFiles += Get-ChildItem -LiteralPath $directory.FullName -Filter "package-lock.json" -File -Recurse -ErrorAction SilentlyContinue
+    }
+    $latestLock = $lockFiles | Sort-Object LastWriteTime -Descending | Select-Object -First 1
+    if (-not $latestLock) { return $null }
+    $lockText = Get-Content -LiteralPath $latestLock.FullName -Raw
+    $match = [regex]::Match($lockText, 'git\+(?:ssh|https?)://[^"#]+#([0-9a-f]{40})')
+    if ($match.Success) { return $match.Groups[1].Value }
+    return $null
+}
+
+function Get-RemoteToolboxCommit {
+    try {
+        [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
+        $response = Invoke-RestMethod -Uri "https://api.github.com/repos/OrionFalls/OpenCode-Toolbox/commits/main" -Headers @{ "User-Agent" = "OpenCode-Toolbox-Installer" } -TimeoutSec 15
+        return [string]$response.sha
+    } catch {
+        return $null
+    }
+}
+
+function Invoke-ToolboxInstallOrUpdate([string]$CliPath, [string]$ConfiguredSpec, [string]$ConfigPath) {
+    $cacheRoot = Join-Path $env:USERPROFILE ".cache\opencode\npm"
+    $cacheBackup = Join-Path $env:TEMP ("opencode-toolbox-cache-" + [guid]::NewGuid().ToString("N"))
+    $configBackup = $ConfigPath + ".toolbox-backup-" + [guid]::NewGuid().ToString("N")
+    $hadConfig = Test-Path -LiteralPath $ConfigPath -PathType Leaf
+
+    if ($hadConfig) { Copy-Item -LiteralPath $ConfigPath -Destination $configBackup -Force }
+    New-Item -ItemType Directory -Path $cacheBackup -Force | Out-Null
+
+    try {
+        if ($ConfiguredSpec) {
+            & $CliPath plugin remove $ConfiguredSpec
+            if ($LASTEXITCODE -ne 0) { throw "OpenCode could not remove the existing Toolbox package entry." }
+        }
+
+        if (Test-Path -LiteralPath $cacheRoot) {
+            $toolboxCaches = Get-ChildItem -LiteralPath $cacheRoot -Directory -ErrorAction SilentlyContinue | Where-Object { $_.Name -like "git-OpenCode-Toolbox-*" }
+            foreach ($directory in $toolboxCaches) {
+                Move-Item -LiteralPath $directory.FullName -Destination $cacheBackup
+            }
+        }
+
+        & $CliPath plugin add $PluginSpec
+        if ($LASTEXITCODE -ne 0) { throw "OpenCode could not install the Toolbox package." }
+
+        if (Test-Path -LiteralPath $cacheBackup) { Remove-Item -LiteralPath $cacheBackup -Recurse -Force }
+        if (Test-Path -LiteralPath $configBackup) { Remove-Item -LiteralPath $configBackup -Force }
+        return $true
+    } catch {
+        if (Test-Path -LiteralPath $configBackup) {
+            Copy-Item -LiteralPath $configBackup -Destination $ConfigPath -Force
+            Remove-Item -LiteralPath $configBackup -Force
+        }
+        if (Test-Path -LiteralPath $cacheBackup) {
+            if (-not (Test-Path -LiteralPath $cacheRoot)) { New-Item -ItemType Directory -Path $cacheRoot -Force | Out-Null }
+            foreach ($directory in (Get-ChildItem -LiteralPath $cacheBackup -Directory -ErrorAction SilentlyContinue)) {
+                if (-not (Test-Path -LiteralPath (Join-Path $cacheRoot $directory.Name))) {
+                    Move-Item -LiteralPath $directory.FullName -Destination $cacheRoot
+                }
+            }
+            Remove-Item -LiteralPath $cacheBackup -Recurse -Force -ErrorAction SilentlyContinue
+        }
+        throw
+    }
+}
+
+function Show-Success([bool]$WasUpdate = $false) {
+    Write-Host ""
+    Write-Host ""
+    Write-Host ("       " + (T "successTitle")) -ForegroundColor Green
+    if ($WasUpdate) {
+        Write-Host ("       " + (T "updatedBody")) -ForegroundColor White
+    } else {
+        Write-Host ("       " + (T "successBody")) -ForegroundColor White
+    }
+    Write-Host ""
+    Write-Host ("  " + (T "next")) -ForegroundColor Cyan
+    Write-Host ("    1. " + (T "next1")) -ForegroundColor White
+    Write-Host ("    2. " + (T "next2")) -ForegroundColor White
+    Write-Host ("    3. " + (T "next3")) -ForegroundColor White
+    Write-Host ""
+    Write-Host ("  " + (T "close")) -ForegroundColor Green
+    Write-Host ""
+}
+
+Show-Banner
+Write-Step 1 (T "step1")
+$cliPath = Find-OpenCodeCli
+while (-not $cliPath) {
+    $manualPath = Request-ManualCliPath
+    if (-not $manualPath) {
+        Write-Host ""
+        Write-Warn (T "cancelled")
+        return
+    }
+    if (Test-OpenCodeCli $manualPath) {
+        $cliPath = (Resolve-Path -LiteralPath $manualPath).Path
+    } else {
+        Write-Fail (T "invalidPath")
+    }
+}
+Write-Ok (T "found")
+Write-Host ("  " + (T "version") + ": " + $script:DetectedVersion) -ForegroundColor Gray
+if ($ValidateOnly) {
+    return
+}
+
+Write-Step 2 (T "step2")
+try {
+    $pathWasAdded = Install-CommandShim $cliPath
+    if ($pathWasAdded) { Write-Ok (T "pathAdded") } else { Write-Ok (T "pathExists") }
+} catch {
+    Write-Warn (T "error")
+    Write-Host ("  " + $_.Exception.Message) -ForegroundColor DarkGray
+    Write-Host ("  " + (T "newTerminal")) -ForegroundColor Gray
+}
+
+Write-Step 3 (T "step3")
+$configPath = Get-ToolboxConfigPath
+$configuredSpec = Get-ConfiguredToolboxSpec $configPath
+$wasUpdate = [bool]$configuredSpec
+
+if ($wasUpdate) {
+    Write-Host ("  " + (T "checkingUpdate")) -ForegroundColor Gray
+    $installedCommit = Get-InstalledToolboxCommit
+    $remoteCommit = Get-RemoteToolboxCommit
+    if ($installedCommit -and $remoteCommit -and ($installedCommit -eq $remoteCommit)) {
+        Write-Ok (T "noUpdates")
+        return
+    }
+    if (-not $remoteCommit) {
+        Write-Warn (T "updateCheckFailed")
+    } else {
+        Write-Host ("  " + (T "updateStart")) -ForegroundColor Gray
+    }
+} else {
+    Write-Host ("  " + (T "firstInstall")) -ForegroundColor Gray
+}
+
+try {
+    $null = Invoke-ToolboxInstallOrUpdate $cliPath $configuredSpec $configPath
+} catch {
+    Write-Host ""
+    if ($wasUpdate) {
+        Write-Fail (T "updateFailed")
+    } else {
+        Write-Fail (T "installFailed")
+    }
+    Write-Host ("  " + (T "errorDetails") + ": " + $_.Exception.Message) -ForegroundColor DarkGray
+    Write-Host ("  " + (T "installHelp")) -ForegroundColor Yellow
+    Write-Host ""
+    return
+}
+
+Show-Success -WasUpdate:$wasUpdate
+ -or -not (Test-Path -LiteralPath $Path -PathType Leaf)) { return $false }
     try {
         $output = & $Path --version 2>&1
         if ($LASTEXITCODE -eq 0) {
