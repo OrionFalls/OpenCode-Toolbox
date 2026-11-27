@@ -5,7 +5,7 @@
 - True Model Disabler: добавлен короткий кеш Desktop visibility policy (1,5 секунды по умолчанию) и объединение одновременных запросов чтения; не открывает SQLite для каждого model call.
 - Добавлены unit-тесты фактического SDK hook: скрытая модель отклоняется, конкурентные вызовы используют один policy read (исправлен импорт registerTrueModelDisabler в test suite).
 - Bulk Model Toggle безопасно игнорирует некорректные контейнеры overrides; добавлены проверки отключённого модуля и некорректных записей.
-- Добавлены регрессионные проверки Provider Disabler: не затрагивает другие провайдеры и сохраняет native disabled state.
+- Добавлены регрессионные проверки Provider Disabler: обновляется только явно отключаемый провайдер; остальные записи и native disabled state остаются нетронутыми.
 - Синхронизированы package metadata, серверный лог, GUI, README и CHANGELOG.
 
 ## 0.2.24

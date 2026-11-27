@@ -32,7 +32,7 @@ test("Provider Disabler changes activation without deleting provider records", a
   assert.equal(providers.length, 2);
   assert.equal(providers[0].provider.activation, "enabled");
   assert.equal(providers[1].provider.activation, "disabled");
-  assert.deepEqual(updates, ["alpha", "beta"]);
+  assert.deepEqual(updates, ["beta"]);
 });
 
 test("setProviderDisabled persists IDs and reloads provider catalog", async () => {
