@@ -8,7 +8,6 @@
 export async function registerProviderDisabler(ctx, getSettings) {
   return ctx.provider.transform((editor) => {
     const settings = getSettings();
-    if (!settings.modules?.providerDisabler) return;
     const disabled = new Set(settings.disabledProviders || []);
     for (const record of editor.list()) {
       const id = record.provider.id;

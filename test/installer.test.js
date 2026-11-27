@@ -24,6 +24,7 @@ test("Windows installer validates the complete server runtime before replacing t
     "modules/provider-and-mcp.js",
     "modules/bulk-model-toggle.js",
     "modules/settings.js",
+    "modules/settings-watcher.js",
   ]) {
     assert.ok(installer.includes('"'+file+'"'), `installer does not include ${file}`);
   }
@@ -62,4 +63,43 @@ test("Toolbox exposes a native Desktop restart action through main-process IPC",
   assert.match(gui, /async reloadWindow\(\)[\s\S]*?BrowserWindow\.getFocusedWindow\(\)[\s\S]*?window\.webContents\.reload\(\)/);
   assert.doesNotMatch(gui, /app\.relaunch\(\)|app\.exit\(0\)/);
   assert.match(gui, /children:"Restart OpenCode"/);
+});
+
+test("MCP-GUI reads registration settings from ToolboxIpc, not McpIpc", () => {
+  const gui = read("../gui-experimental.cjs");
+  const section = gui.slice(gui.indexOf("function setupMcpGuiPage"), gui.indexOf("function setupToolboxPage"));
+  assert.match(section, /toolboxApi\(\)\.getSettings\(\)/);
+  assert.doesNotMatch(section, /api\(\)\.getSettings\(\)/);
+});
+
+test("Toolbox page contains only True Model Disabler, Provider Disabler and compact Bulk controls", () => {
+  const gui = read("../gui-experimental.cjs");
+  const section = gui.slice(gui.indexOf("function setupToolboxPage"), gui.indexOf("exports.default"));
+  assert.doesNotMatch(section, /createComponent\(ui.SettingsSection,\{title:"Modules"/);
+  assert.match(section, /title:"True Model Disabler"/);
+  assert.match(section, /title:"Provider Disabler"/);
+  assert.match(section, /title:"Bulk Model Toggle"/);
+  assert.match(section, /children:"Enable all"/);
+  assert.match(section, /children:"Disable all"/);
+  assert.doesNotMatch(section, /Reset overrides|Models found|Saved overrides/);
+});
+
+test("Settings watcher reloads provider and model transforms after shared settings changes", async () => {
+  const { watchSettingsFile } = await import("../modules/settings-watcher.js");
+  let listener, closed = false, providers = 0, models = 0;
+  const stop = watchSettingsFile({
+    provider: { async reload() { providers++; } },
+    model: { async reload() { models++; } },
+  }, "/tmp/opencode/opencode-toolbox.json", (directory, options, callback) => {
+    assert.equal(directory, "/tmp/opencode");
+    assert.equal(options.persistent, false);
+    listener = callback;
+    return { close() { closed = true; } };
+  });
+  listener("rename", "opencode-toolbox.json");
+  await new Promise(resolve => setTimeout(resolve, 180));
+  assert.equal(providers, 1);
+  assert.equal(models, 1);
+  stop();
+  assert.equal(closed, true);
 });

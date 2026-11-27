@@ -158,10 +158,13 @@ test("MCP-GUI settings can disable and re-enable a single server without losing 
   assert.deepEqual(withBrowser.disabledMcpServers, ["figma", "browser"]);
 });
 
-test("MCP and Custom Providers modules default to disabled", () => {
-  const value = normalizeSettings({});
-  assert.equal(value.modules.mcpGui, false);
-  assert.equal(value.modules.customProviders, false);
+test("Only True Model Disabler is user-toggleable; all other Toolbox modules are always enabled", () => {
+  const value = normalizeSettings({ modules: { providerDisabler: false, bulkModelToggle: false, mcpGui: false, customProviders: false } });
+  assert.equal(value.modules.trueModelDisabler, true);
+  assert.equal(value.modules.providerDisabler, true);
+  assert.equal(value.modules.bulkModelToggle, true);
+  assert.equal(value.modules.mcpGui, true);
+  assert.equal(value.modules.customProviders, true);
   assert.deepEqual(value.disabledMcpServers, []);
 });
 
@@ -181,14 +184,14 @@ test("Provider Disabler leaves unrelated providers untouched and only applies ex
   assert.equal(records.find(r => r.provider.id === "gamma").provider.activation, "disabled");
 });
 
-test("Bulk Model Toggle leaves native model states untouched when module is disabled", async () => {
+test("Bulk Model Toggle applies saved overrides regardless of obsolete module flags", async () => {
   let transform;
   const ctx = { model: { transform: async fn => { transform = fn; return { dispose() {} }; } } };
   const settings = { modules: { bulkModelToggle: false }, modelEnabledOverrides: { alpha: { one: false } } };
   await registerBulkModelToggle(ctx, () => settings);
   const model = { id: "one", enabled: true };
   await transform({ update: (_provider, _id, fn) => fn(model) });
-  assert.equal(model.enabled, true);
+  assert.equal(model.enabled, false);
 });
 
 test("Bulk Model Toggle ignores malformed provider override containers", async () => {
@@ -244,4 +247,13 @@ test("Bulk Model Toggle reset with no overrides does not reload the model catalo
   const result = await resetProviderModelOverrides(ctx, "alpha");
   assert.equal(result.removed, 0);
   assert.equal(reloaded, 0);
+});
+
+test("Provider Disabler applies saved disables even when old module flag is false", async () => {
+  const providers = [{ provider: { id: "alpha", activation: "enabled" } }];
+  let transform;
+  const ctx = { provider: { transform: async fn => { transform = fn; return { dispose() {} }; } } };
+  await registerProviderDisabler(ctx, () => ({ modules: { providerDisabler: false }, disabledProviders: ["alpha"] }));
+  await transform({ list: () => providers, update: (_id, fn) => fn(providers[0].provider) });
+  assert.equal(providers[0].provider.activation, "disabled");
 });

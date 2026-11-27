@@ -432,6 +432,7 @@ function Invoke-ToolboxInstallOrUpdate([string]$CliPath, [string]$ConfiguredSpec
             "modules/provider-and-mcp.js",
             "modules/bulk-model-toggle.js",
             "modules/settings.js",
+            "modules/settings-watcher.js",
             "vendor/custom-provider/LICENSE",
             "vendor/custom-provider/UPSTREAM.md"
         )
@@ -451,7 +452,8 @@ function Invoke-ToolboxInstallOrUpdate([string]$CliPath, [string]$ConfiguredSpec
             "modules/true-model-disabler.js",
             "modules/provider-and-mcp.js",
             "modules/bulk-model-toggle.js",
-            "modules/settings.js"
+            "modules/settings.js",
+            "modules/settings-watcher.js"
         )
         $missingFiles = @($requiredFiles | Where-Object {
             -not (Test-Path -LiteralPath (Join-Path $stagingDirectory $_) -PathType Leaf)

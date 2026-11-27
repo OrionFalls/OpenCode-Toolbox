@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.2.37
+
+- Toolbox UI: полностью удалён общий блок Modules; оставлен отдельный переключатель True Model Disabler. Provider Disabler, Bulk Model Toggle, MCP-GUI и Custom Providers всегда активны.
+- MCP-GUI: исправлено чтение настроек через ToolboxIpc (ранее вызывался отсутствующий getSettings на McpIpc); страница регистрируется по тому же шаблону, что Custom Providers.
+- Provider Disabler и Bulk Model Toggle: серверные transforms больше не зависят от флагов модулей, которые в пользовательском интерфейсе больше не существуют.
+- Добавлен watcher общего файла настроек: после изменения provider/model overrides сервер автоматически вызывает provider.reload() и model.reload(), без ручного перезапуска Desktop.
+- Bulk Model Toggle упрощён до выбора провайдера и двух кнопок Enable all / Disable all; удалены счётчики и Reset overrides.
+- Установщик включает новый settings-watcher; синхронизированы версия, README и CHANGELOG.
+
 ## 0.2.36
 
 - Исправлена некорректная запись переноса строки в регрессионном тесте кнопки Reload; добавлена корректная проверка вызова `webContents.reload()` и отсутствия `app.relaunch()` / `app.exit()`.

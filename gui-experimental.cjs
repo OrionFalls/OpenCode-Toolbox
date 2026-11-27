@@ -2302,9 +2302,13 @@ async function createMainHandler(ctx) {
   const toolboxSettingsPath = path.join(configDir, "opencode-toolbox.json");
   ctx.provide(ToolboxIpc, {
     async getSettings() {
-      try { return await fsp.readFile(toolboxSettingsPath, "utf8"); }
+      try {
+        const raw = await fsp.readFile(toolboxSettingsPath, "utf8");
+        const value = JSON.parse(raw);
+        return JSON.stringify({ ...value, modules: { trueModelDisabler: value.modules?.trueModelDisabler !== false, providerDisabler: true, bulkModelToggle: true, mcpGui: true, customProviders: true } });
+      }
       catch (error) {
-        if (error?.code === "ENOENT") return JSON.stringify({ modules: { trueModelDisabler: true, providerDisabler: false, bulkModelToggle: false, mcpGui: false, customProviders: false }, disabledProviders: [], disabledMcpServers: [], modelEnabledOverrides: {} });
+        if (error?.code === "ENOENT") return JSON.stringify({ modules: { trueModelDisabler: true, providerDisabler: true, bulkModelToggle: true, mcpGui: true, customProviders: true }, disabledProviders: [], disabledMcpServers: [], modelEnabledOverrides: {} });
         throw error;
       }
     },
@@ -2316,10 +2320,10 @@ async function createMainHandler(ctx) {
           ...value,
           modules: {
             trueModelDisabler: value.modules?.trueModelDisabler !== false,
-            providerDisabler: Boolean(value.modules?.providerDisabler),
-            bulkModelToggle: Boolean(value.modules?.bulkModelToggle),
-            mcpGui: Boolean(value.modules?.mcpGui),
-            customProviders: Boolean(value.modules?.customProviders),
+            providerDisabler: true,
+            bulkModelToggle: true,
+            mcpGui: true,
+            customProviders: true,
           },
           disabledProviders: Array.isArray(value.disabledProviders) ? [...new Set(value.disabledProviders.filter(x => typeof x === "string" && x.trim()))] : [],
           disabledMcpServers: Array.isArray(value.disabledMcpServers) ? [...new Set(value.disabledMcpServers.filter(x => typeof x === "string" && x.trim()))] : [],
@@ -4602,7 +4606,7 @@ function setupRenderer(ctx) {
 }
 
 function setupMcpGuiPage(ctx) {
-  const ui = ctx.ui, ipc = ctx.use(McpIpc), api = () => ctx.main(McpIpc);
+  const ui = ctx.ui, ipc = ctx.use(McpIpc), api = () => ctx.main(McpIpc), toolboxApi = () => ctx.main(ToolboxIpc);
   const [manualState, setManualState] = createSignal(null);
   const state = () => manualState() ?? (ipc().status === "active" ? ipc().value.state() : undefined);
   const [id, setId] = createSignal(""), [type, setType] = createSignal("local");
@@ -4634,9 +4638,9 @@ function setupMcpGuiPage(ctx) {
   }
   const field=(label,value,setter,placeholder)=>h("div",{class:"cp-field"},h("div",{class:"cp-label"},label),createComponent(ui.TextInput,{label,value,placeholder,onInput:setter}));
   const register = async () => {
-    const rawSettings = await api().getSettings();
+    const rawSettings = await toolboxApi().getSettings();
     const settings = typeof rawSettings === "string" ? JSON.parse(rawSettings) : rawSettings;
-    if (!settings.modules?.mcpGui) return;
+    // MCP-GUI is part of the always-on Toolbox suite.
     ctx.add(Command,{id:"mcp-gui",title:"Manage MCP Servers",description:"Add, edit, enable, disable and remove MCP servers",keywords:"mcp server tools local remote",group:"Settings",section:"navigation",slash:{name:"mcp-gui"},run:()=>ctx.layout.settings("mcp-gui")});
     ctx.add(SettingsPage,{
       id:"mcp-gui",title:"MCP-GUI",icon:"server",
@@ -4683,16 +4687,16 @@ function setupToolboxPage(ctx) {
   ctx.add(Command,{id:"toolbox",title:"Open OpenCode Toolbox",description:"Open the modular Toolbox settings",keywords:"toolbox modules mcp providers",group:"Settings",section:"navigation",slash:{name:"toolbox"},run:()=>ctx.layout.settings("toolbox")});
   ctx.add(SettingsPage,{
     id:"toolbox",title:"OpenCode Toolbox",icon:"outline-sliders",
-    entries:[{id:"toolbox-modules",title:"Modules",description:"Configure Toolbox modules, providers and models",keywords:"toolbox modules providers models"}],
+    entries:[{id:"toolbox-settings",title:"Toolbox settings",description:"Configure model visibility, providers and models",keywords:"toolbox settings providers models"}],
     render:()=>{
-      const [settings,setSettings]=createSignal({modules:{trueModelDisabler:true,providerDisabler:false,bulkModelToggle:false,mcpGui:false,customProviders:false},disabledProviders:[],disabledMcpServers:[],modelEnabledOverrides:{}});
+      const [settings,setSettings]=createSignal({modules:{trueModelDisabler:true,providerDisabler:true,bulkModelToggle:true,mcpGui:true,customProviders:true},disabledProviders:[],disabledMcpServers:[],modelEnabledOverrides:{}});
       const [providers,setProviders]=createSignal([]),[models,setModels]=createSignal([]),[selected,setSelected]=createSignal("");
       const [status,setStatus]=createSignal("Loading settings…"),[busy,setBusy]=createSignal(false);
       const load=async()=>{
         setBusy(true);
         try {
           const raw=await ipc.getSettings(), parsed=JSON.parse(raw);
-          setSettings({...settings(),...parsed,modules:{...settings().modules,...(parsed.modules||{})}});
+          setSettings({...settings(),...parsed,modules:{trueModelDisabler:parsed.modules?.trueModelDisabler!==false,providerDisabler:true,bulkModelToggle:true,mcpGui:true,customProviders:true}});
           const [pr,mr]=await Promise.all([ctx.client.provider.list(),ctx.client.model.list()]);
           const pd=pr?.data??pr, md=mr?.data??mr;
           const pRows=Array.isArray(pd)?pd:Object.values(pd?.all||pd?.connected||pd?.providers||pd||{});
@@ -4709,7 +4713,7 @@ function setupToolboxPage(ctx) {
         try{const r=await ipc.saveSettings(JSON.stringify(next));if(!r.ok)throw new Error(r.message);setStatus(r.message);}
         catch(e){setStatus("Save failed: "+String(e));}
       };
-      const moduleSwitch=(key,value)=>void save({...settings(),modules:{...settings().modules,[key]:value}});
+      const moduleSwitch=value=>void save({...settings(),modules:{trueModelDisabler:value,providerDisabler:true,bulkModelToggle:true,mcpGui:true,customProviders:true}});
       const providerSwitch=(id,value)=>{
         const ids=new Set(settings().disabledProviders||[]);
         if(value)ids.delete(id);else ids.add(id);
@@ -4717,53 +4721,39 @@ function setupToolboxPage(ctx) {
       };
       const bulk=enabled=>{
         const id=selected(), target=models().filter(m=>m.providerID===id);
+        if(!id||!target.length){setStatus("No models found for the selected provider.");return;}
         const overrides={...(settings().modelEnabledOverrides||{}),[id]:{...(settings().modelEnabledOverrides?.[id]||{})}};
-        for(const m of target)overrides[id][m.id]=enabled;
+        for(const m of target)overrides[id][m.id]=Boolean(enabled);
         void save({...settings(),modelEnabledOverrides:overrides});
       };
-      const resetBulk=()=>{
-        const id=selected();
-        const overrides={...(settings().modelEnabledOverrides||{})};
-        delete overrides[id];
-        void save({...settings(),modelEnabledOverrides:overrides});
-      };
-      const overrideCount=()=>Object.keys(settings().modelEnabledOverrides?.[selected()]||{}).length;
       void load();
       return createComponent(ui.SettingsLayout,{
         title:"OpenCode Toolbox",
-        description:"Settings are stored in opencode-toolbox.json. Restart OpenCode Desktop to apply server-side changes.",
+        description:"Settings are stored in opencode-toolbox.json. Provider and model changes are applied automatically.",
         get actions(){return h("div",{class:"cp-row-controls"},
           createComponent(ui.Button,{variant:"neutral",size:"small",icon:"refresh",busy:busy(),onClick:()=>void load(),children:"Refresh"}),
           createComponent(ui.Button,{variant:"contrast",size:"small",icon:"refresh-cw",onClick:async()=>{try{const r=await ipc.reloadWindow();if(!r.ok)setStatus("Restart failed: "+r.message);}catch(e){setStatus("Restart failed: "+String(e));}},children:"Restart OpenCode"})
         );},
         get children(){return [
-          createComponent(ui.SettingsSection,{title:"Modules",get children(){
-            return [
-              ["trueModelDisabler","True Model Disabler","Blocks hidden models at request time, including subagents."],
-              ["providerDisabler","Provider Disabler","Temporarily disables providers without removing credentials."],
-              ["bulkModelToggle","Bulk Model Toggle","Enables/disables all models from a selected provider."],
-              ["mcpGui","MCP-GUI","Manage local and remote MCP servers."],
-              ["customProviders","Custom Providers","Manage custom API providers. Based on MoGlitch's MIT-licensed project."]
-            ].map(([key,title,description])=>createComponent(ui.SettingsRow,{title,description,get children(){return createComponent(ui.Switch,{label:"Enabled",checked:settings().modules[key]!==false,onChange:v=>moduleSwitch(key,v)});}}));
-          }}),
-          ...(settings().modules.providerDisabler ? [createComponent(ui.SettingsSection,{title:"Provider Disabler",get children(){
-            return providers().map(p=>createComponent(ui.SettingsRow,{title:p.name,description:p.id,get children(){return createComponent(ui.Switch,{label:"Enabled",checked:!(settings().disabledProviders||[]).includes(p.id),onChange:v=>providerSwitch(p.id,v)});}}));
-          }})] : []),
-          ...(settings().modules.bulkModelToggle ? [createComponent(ui.SettingsSection,{title:"Bulk Model Toggle",get children(){
-            const options=providers().map(p=>({value:p.id,label:p.name+" ("+p.id+")"}));
-            return [
-              createComponent(ui.SettingsRow,{title:"Provider",description:"Choose which provider's models to change.",get children(){return createComponent(ui.Select,{label:"Provider",options,value:selected(),onChange:setSelected});}}),
-              createComponent(ui.SettingsRow,{title:"Models found",description:String(models().filter(m=>m.providerID===selected()).length)}),
-              createComponent(ui.SettingsRow,{title:"Saved overrides",description:String(overrideCount())+" model(s) overridden for this provider."}),
-              createComponent(ui.SettingsRow,{title:"Bulk actions",description:"Overrides are stored by provider/model ID. Restart OpenCode to apply changes. Reset removes Toolbox overrides and returns control to the provider's native model defaults.",get children(){return h("div",{class:"cp-row-controls"},
-                createComponent(ui.Button,{variant:"contrast",size:"small",onClick:()=>bulk(true),disabled:models().filter(m=>m.providerID===selected()).length===0,children:"Enable all"}),
-                createComponent(ui.Button,{variant:"neutral",size:"small",onClick:()=>bulk(false),disabled:models().filter(m=>m.providerID===selected()).length===0,children:"Disable all"}),
-                createComponent(ui.Button,{variant:"ghost",size:"small",onClick:resetBulk,disabled:overrideCount()===0,children:"Reset overrides"})
-              );}})
-            ];
-          }})] : []),
-          createComponent(ui.SettingsSection,{title:"About",get children(){return [
-            createComponent(ui.SettingsRow,{title:"Version",description:"0.2.36"}),
+           createComponent(ui.SettingsSection,{title:"True Model Disabler",get children(){
+             return createComponent(ui.SettingsRow,{title:"Hide models disabled in OpenCode Settings",description:"Blocks hidden models at request time, including subagents.",get children(){return createComponent(ui.Switch,{label:"Enabled",checked:settings().modules.trueModelDisabler!==false,onChange:moduleSwitch});}});
+           }}),
+           createComponent(ui.SettingsSection,{title:"Provider Disabler",get children(){
+             return providers().map(p=>createComponent(ui.SettingsRow,{title:p.name,description:p.id,get children(){return createComponent(ui.Switch,{label:"Enabled",checked:!(settings().disabledProviders||[]).includes(p.id),onChange:v=>providerSwitch(p.id,v)});}}));
+           }}),
+           createComponent(ui.SettingsSection,{title:"Bulk Model Toggle",get children(){
+             const options=providers().map(p=>({value:p.id,label:p.name+" ("+p.id+")"}));
+             const hasModels=models().some(m=>m.providerID===selected());
+             return [
+               createComponent(ui.SettingsRow,{title:"Provider",get children(){return createComponent(ui.Select,{label:"Provider",options,value:selected(),onChange:setSelected});}}),
+               createComponent(ui.SettingsRow,{title:"Models",get children(){return h("div",{class:"cp-row-controls"},
+                 createComponent(ui.Button,{variant:"contrast",size:"small",busy:busy(),disabled:!hasModels,onClick:()=>bulk(true),children:"Enable all"}),
+                 createComponent(ui.Button,{variant:"neutral",size:"small",busy:busy(),disabled:!hasModels,onClick:()=>bulk(false),children:"Disable all"})
+               );}})
+             ];
+           }}),
+createComponent(ui.SettingsSection,{title:"About",get children(){return [
+            createComponent(ui.SettingsRow,{title:"Version",description:"0.2.37"}),
             createComponent(ui.SettingsRow,{title:"Settings file",description:"opencode-toolbox.json in the OpenCode config directory."}),
             createComponent(ui.SettingsRow,{title:"Custom Providers attribution",description:"Based on MoGLCL/opencode-custom-provider by MoGlitch. MIT License."}),
             createComponent(ui.SettingsRow,{title:"Status",description:status()||"Ready"})
