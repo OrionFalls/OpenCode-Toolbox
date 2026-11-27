@@ -59,11 +59,22 @@ Run the exact same PowerShell command shown in **Install on Windows**. It detect
 
 ### Remove
 
+Open PowerShell and run:
+
 ```powershell
-Remove-Item "$env:USERPROFILE\.config\opencode\plugins\opencode-toolbox" -Recurse -Force
+irm https://raw.githubusercontent.com/OrionFalls/OpenCode-Toolbox/main/uninstall.ps1 | iex
 ```
 
-Restart OpenCode Desktop after removing the local plugin.
+The uninstaller locates OpenCode's active configuration directory (using `opencode debug paths` when available), checks the usual Windows/XDG config locations, and searches their plugin folders for the Toolbox package identity. It also detects and removes the previous Git/npm package cache, but only after verifying that its `package.json` belongs to `opencode-toolbox`. It does not remove other plugins, OpenCode itself, the CLI command shim, or user settings.
+
+For a safe preview without deleting anything, download the script and run it with PowerShell's `-WhatIf` preference enabled:
+
+```powershell
+$WhatIfPreference = $true
+. (Invoke-WebRequest -UseBasicParsing https://raw.githubusercontent.com/OrionFalls/OpenCode-Toolbox/main/uninstall.ps1).Content
+```
+
+Restart OpenCode Desktop after removal.
 
 ## Development
 
