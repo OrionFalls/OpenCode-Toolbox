@@ -4558,11 +4558,6 @@ function setupRenderer(ctx) {
         });
       },
     });
-  }
-  
-  // ---------------------------------------------------------------------------
-  // OpenCode Toolbox integration
-  // ---------------------------------------------------------------------------
   }).catch((error) => {
     ctx.toast.show({ variant: "error", title: "Custom Providers settings unavailable", description: String(error) });
   });
