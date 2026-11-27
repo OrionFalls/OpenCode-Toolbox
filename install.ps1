@@ -36,7 +36,7 @@ $Text = @{
         intro = "This wizard will find OpenCode, check it, and install Toolbox."
         step1 = "Looking for OpenCode"
         step2 = "Preparing the command"
-        step3 = "Installing Toolbox"
+        step3 = "Installing / updating Toolbox"
         found = "OpenCode was found."
         version = "Version"
         pathAdded = "The command is ready to use in new terminal windows."
@@ -48,6 +48,13 @@ $Text = @{
         invalidPath = "That file could not be started as OpenCode CLI. Please try again."
         cancelled = "Setup was cancelled. No plugin was installed."
         installStart = "Installing OpenCode Toolbox. This may take a moment..."
+        firstInstall = "OpenCode Toolbox is not installed yet. Starting installation..."
+        checkingUpdate = "Checking the installed version against GitHub..."
+        updateStart = "A new version is available. Updating OpenCode Toolbox..."
+        noUpdates = "OpenCode Toolbox is up to date. No updates are available."
+        updatedBody = "OpenCode Toolbox has been updated successfully."
+        updateFailed = "The update failed. Your previous configuration has been restored."
+        updateCheckFailed = "Could not check GitHub for updates. A fresh install/update will be attempted."
         installFailed = "Toolbox could not be installed."
         installHelp = "Check your internet connection and GitHub access, then run this command again."
         diagnostics = "For support, copy this diagnostic command"
@@ -66,6 +73,16 @@ $Text = @{
     ru = [Text.Encoding]::UTF8.GetString([Convert]::FromBase64String("eyJzdWJ0aXRsZSI6ItCf0YDQvtGB0YLQsNGPINGD0YHRgtCw0L3QvtCy0LrQsCDQtNC70Y8gT3BlbkNvZGUgRGVza3RvcCIsIndlbGNvbWUiOiLQlNC+0LHRgNC+INC/0L7QttCw0LvQvtCy0LDRgtGMISIsImludHJvIjoi0JzQsNGB0YLQtdGAINC90LDQudC00ZHRgiBPcGVuQ29kZSwg0L/RgNC+0LLQtdGA0LjRgiDQtdCz0L4g0Lgg0YPRgdGC0LDQvdC+0LLQuNGCIFRvb2xib3guIiwic3RlcDEiOiLQn9C+0LjRgdC6IE9wZW5Db2RlIiwic3RlcDIiOiLQn9C+0LTQs9C+0YLQvtCy0LrQsCDQutC+0LzQsNC90LTRiyIsInN0ZXAzIjoi0KPRgdGC0LDQvdC+0LLQutCwIFRvb2xib3giLCJmb3VuZCI6Ik9wZW5Db2RlINC90LDQudC00LXQvS4iLCJ2ZXJzaW9uIjoi0JLQtdGA0YHQuNGPIiwicGF0aEFkZGVkIjoi0JrQvtC80LDQvdC00LAg0LHRg9C00LXRgiDQtNC+0YHRgtGD0L/QvdCwINCyINC90L7QstGL0YUg0L7QutC90LDRhSDRgtC10YDQvNC40L3QsNC70LAuIiwicGF0aEV4aXN0cyI6ItCa0LDRgtCw0LvQvtCzINC60L7QvNCw0L3QtNGLINGD0LbQtSDQtNC+0LHQsNCy0LvQtdC9INCyINC/0L7Qu9GM0LfQvtCy0LDRgtC10LvRjNGB0LrQuNC5IFBBVEguIiwibG9jYXRpbmciOiLQndC1INGD0LTQsNC70L7RgdGMINCw0LLRgtC+0LzQsNGC0LjRh9C10YHQutC4INC90LDQudGC0LggT3BlbkNvZGUuIiwiY2hvb3NlIjoi0JLRi9Cx0LXRgNC40YLQtSBvcGVuY29kZS5leGUg0LjQu9C4IG9wZW5jb2RlLWNsaS5leGUg0LIg0L7QutC90LUg0L/RgNC+0LLQvtC00L3QuNC60LAuIiwicGlja2VyVW5hdmFpbGFibGUiOiLQntC60L3QviDQstGL0LHQvtGA0LAg0YTQsNC50LvQsCDQvdC10LTQvtGB0YLRg9C/0L3Qvi4g0J3QuNC20LUg0LzQvtC20L3QviDRg9C60LDQt9Cw0YLRjCDQv9C+0LvQvdGL0Lkg0L/Rg9GC0Ywg0LLRgNGD0YfQvdGD0Y4uIiwiZW50ZXJQYXRoIjoi0J/QvtC70L3Ri9C5INC/0YPRgtGMINC6IE9wZW5Db2RlIENMSSAoRW50ZXIgLSDQvtGC0LzQtdC90LApIiwiaW52YWxpZFBhdGgiOiLQndC1INGD0LTQsNC70L7RgdGMINC30LDQv9GD0YHRgtC40YLRjCDRjdGC0L7RgiDRhNCw0LnQuyDQutCw0LogT3BlbkNvZGUgQ0xJLiDQn9C+0L/RgNC+0LHRg9C50YLQtSDQtdGJ0ZEg0YDQsNC3LiIsImNhbmNlbGxlZCI6ItCj0YHRgtCw0L3QvtCy0LrQsCDQvtGC0LzQtdC90LXQvdCwLiDQn9C70LDQs9C40L0g0L3QtSDRg9GB0YLQsNC90LDQstC70LjQstCw0LvRgdGPLiIsImluc3RhbGxTdGFydCI6ItCj0YHRgtCw0L3QsNCy0LvQuNCy0LDQtdC8IE9wZW5Db2RlIFRvb2xib3guINCt0YLQviDQvNC+0LbQtdGCINC30LDQvdGP0YLRjCDQvdC10YHQutC+0LvRjNC60L4g0LzQuNC90YPRgi4uLiIsImluc3RhbGxGYWlsZWQiOiLQndC1INGD0LTQsNC70L7RgdGMINGD0YHRgtCw0L3QvtCy0LjRgtGMIFRvb2xib3guIiwiaW5zdGFsbEhlbHAiOiLQn9GA0L7QstC10YDRjNGC0LUg0L/QvtC00LrQu9GO0YfQtdC90LjQtSDQuiDQuNC90YLQtdGA0L3QtdGC0YMg0LggR2l0SHViLCDQt9Cw0YLQtdC8INC30LDQv9GD0YHRgtC40YLQtSDRjdGC0YMg0LrQvtC80LDQvdC00YMg0LXRidGRINGA0LDQty4iLCJkaWFnbm9zdGljcyI6ItCU0LvRjyDQtNC40LDQs9C90L7RgdGC0LjQutC4INGB0LrQvtC/0LjRgNGD0LnRgtC1INGN0YLRgyDQutC+0LzQsNC90LTRgyIsInN1Y2Nlc3NUaXRsZSI6ItCS0YHRkSDQs9C+0YLQvtCy0L4hIiwic3VjY2Vzc0JvZHkiOiJPcGVuQ29kZSBUb29sYm94INGD0YHQv9C10YjQvdC+INGD0YHRgtCw0L3QvtCy0LvQtdC9LiIsIm5leHQiOiLQp9GC0L4g0LTQtdC70LDRgtGMINC00LDQu9GM0YjQtSIsIm5leHQxIjoi0JfQsNC60YDQvtC50YLQtSDQuCDQt9Cw0L3QvtCy0L4g0L7RgtC60YDQvtC50YLQtSBPcGVuQ29kZSBEZXNrdG9wLiIsIm5leHQyIjoi0J7RgtC60YDQvtC50YLQtSDQndCw0YHRgtGA0L7QudC60LggPiDQoNCw0YHRiNC40YDQtdC90LjRjyA+INCf0LvQsNCz0LjQvdGLLiIsIm5leHQzIjoi0J3QsNC50LTQuNGC0LUgT3BlbkNvZGUgVG9vbGJveCDQsiDRgdC/0LjRgdC60LUuIiwiY2xvc2UiOiLQo9GB0YLQsNC90L7QstC60LAg0LfQsNCy0LXRgNGI0LXQvdCwLiDQrdGC0L4g0L7QutC90L4g0LzQvtC20L3QviDQt9Cw0LrRgNGL0YLRjC4iLCJuZXdUZXJtaW5hbCI6ItCn0YLQvtCx0Ysg0LjRgdC/0L7Qu9GM0LfQvtCy0LDRgtGMINC60L7QvNCw0L3QtNGDIG9wZW5jb2RlLCDQvtGC0LrRgNC+0LnRgtC1INC90L7QstC+0LUg0L7QutC90L4gUG93ZXJTaGVsbC4iLCJmb290ZXIiOiLQn9GA0LDQstCwINCw0LTQvNC40L3QuNGB0YLRgNCw0YLQvtGA0LAg0L3QtSDQvdGD0LbQvdGLLiDQodGD0YnQtdGB0YLQstGD0Y7RidC40LUg0L3QsNGB0YLRgNC+0LnQutC4IE9wZW5Db2RlINC90LUg0LjQt9C80LXQvdGP0Y7RgtGB0Y8uIiwiZXJyb3IiOiLQndC1INGD0LTQsNC70L7RgdGMINC/0L7QtNCz0L7RgtC+0LLQuNGC0Ywg0LrQvtC80LDQvdC00YMiLCJlcnJvckRldGFpbHMiOiLQn9C+0LTRgNC+0LHQvdC+0YHRgtC4In0=")) | ConvertFrom-Json
 }
 
+
+$Text.ru | Add-Member -NotePropertyName step3 -NotePropertyValue "Установка / обновление Toolbox" -Force
+$Text.ru | Add-Member -NotePropertyName firstInstall -NotePropertyValue "OpenCode Toolbox ещё не установлен. Начинаем установку..." -Force
+$Text.ru | Add-Member -NotePropertyName checkingUpdate -NotePropertyValue "Сверяем установленную версию с GitHub..." -Force
+$Text.ru | Add-Member -NotePropertyName updateStart -NotePropertyValue "Найдена новая версия. Обновляем OpenCode Toolbox..." -Force
+$Text.ru | Add-Member -NotePropertyName noUpdates -NotePropertyValue "Установлена последняя версия OpenCode Toolbox. Обновлений нет." -Force
+$Text.ru | Add-Member -NotePropertyName updatedBody -NotePropertyValue "OpenCode Toolbox успешно обновлён." -Force
+$Text.ru | Add-Member -NotePropertyName updateFailed -NotePropertyValue "Не удалось выполнить обновление. Предыдущая конфигурация восстановлена." -Force
+$Text.ru | Add-Member -NotePropertyName updateCheckFailed -NotePropertyValue "Не удалось проверить обновления на GitHub. Попробуем выполнить обновление напрямую." -Force
+
 function T([string]$Key) {
     $entry = $Text[$script:Language]
     if ($entry -is [hashtable]) { return $entry[$Key] }
@@ -81,7 +98,7 @@ function Write-Fail([string]$Message) { Write-Host ("  [X]   " + $Message) -Fore
 
 function Show-Logo {
     $logo = @(
-        '.                                        __   '
+        '.                                          __   '
         '  ____  ____  ___  ____  _________  ____/ /__ '
         ' / __ \/ __ \/ _ \/ __ \/ ___/ __ \/ __  / _ \'
         '/ /_/ / /_/ /  __/ / / / /__/ /_/ / /_/ /  __/'
@@ -257,11 +274,114 @@ exit /b %ERRORLEVEL%
     return (Add-UserPath $ShimDirectory)
 }
 
-function Show-Success {
+function Get-ToolboxConfigPath {
+    $candidates = @(
+        (Join-Path $env:USERPROFILE ".config\opencode\opencode.json"),
+        (Join-Path $env:USERPROFILE ".config\opencode\opencode.jsonc"),
+        (Join-Path $env:APPDATA "opencode\opencode.json"),
+        (Join-Path $env:APPDATA "opencode\opencode.jsonc")
+    )
+    foreach ($candidate in $candidates) {
+        if (Test-Path -LiteralPath $candidate -PathType Leaf) { return $candidate }
+    }
+    return $candidates[0]
+}
+
+function Get-ConfiguredToolboxSpec([string]$ConfigPath) {
+    if (-not (Test-Path -LiteralPath $ConfigPath -PathType Leaf)) { return $null }
+    $raw = Get-Content -LiteralPath $ConfigPath -Raw
+    $knownSpecs = @(
+        "git+https://github.com/OrionFalls/OpenCode-Toolbox.git#main",
+        "https://github.com/OrionFalls/OpenCode-Toolbox.git#main",
+        "github:OrionFalls/OpenCode-Toolbox#main"
+    )
+    foreach ($candidate in $knownSpecs) {
+        if ($raw.Contains($candidate)) { return $candidate }
+    }
+    return $null
+}
+
+function Get-InstalledToolboxCommit {
+    $cacheRoot = Join-Path $env:USERPROFILE ".cache\opencode\npm"
+    if (-not (Test-Path -LiteralPath $cacheRoot)) { return $null }
+    $lockFiles = @()
+    $cacheDirs = Get-ChildItem -LiteralPath $cacheRoot -Directory -ErrorAction SilentlyContinue | Where-Object { $_.Name -like "git-OpenCode-Toolbox-*" }
+    foreach ($directory in $cacheDirs) {
+        $lockFiles += Get-ChildItem -LiteralPath $directory.FullName -Filter "package-lock.json" -File -Recurse -ErrorAction SilentlyContinue
+    }
+    $latestLock = $lockFiles | Sort-Object LastWriteTime -Descending | Select-Object -First 1
+    if (-not $latestLock) { return $null }
+    $lockText = Get-Content -LiteralPath $latestLock.FullName -Raw
+    $match = [regex]::Match($lockText, 'git\+(?:ssh|https?)://[^"#]+#([0-9a-f]{40})')
+    if ($match.Success) { return $match.Groups[1].Value }
+    return $null
+}
+
+function Get-RemoteToolboxCommit {
+    try {
+        [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
+        $response = Invoke-RestMethod -Uri "https://api.github.com/repos/OrionFalls/OpenCode-Toolbox/commits/main" -Headers @{ "User-Agent" = "OpenCode-Toolbox-Installer" } -TimeoutSec 15
+        return [string]$response.sha
+    } catch {
+        return $null
+    }
+}
+
+function Invoke-ToolboxInstallOrUpdate([string]$CliPath, [string]$ConfiguredSpec, [string]$ConfigPath) {
+    $cacheRoot = Join-Path $env:USERPROFILE ".cache\opencode\npm"
+    $cacheBackup = Join-Path $env:TEMP ("opencode-toolbox-cache-" + [guid]::NewGuid().ToString("N"))
+    $configBackup = $ConfigPath + ".toolbox-backup-" + [guid]::NewGuid().ToString("N")
+    $hadConfig = Test-Path -LiteralPath $ConfigPath -PathType Leaf
+
+    if ($hadConfig) { Copy-Item -LiteralPath $ConfigPath -Destination $configBackup -Force }
+    New-Item -ItemType Directory -Path $cacheBackup -Force | Out-Null
+
+    try {
+        if ($ConfiguredSpec) {
+            & $CliPath plugin remove $ConfiguredSpec
+            if ($LASTEXITCODE -ne 0) { throw "OpenCode could not remove the existing Toolbox package entry." }
+        }
+
+        if (Test-Path -LiteralPath $cacheRoot) {
+            $toolboxCaches = Get-ChildItem -LiteralPath $cacheRoot -Directory -ErrorAction SilentlyContinue | Where-Object { $_.Name -like "git-OpenCode-Toolbox-*" }
+            foreach ($directory in $toolboxCaches) {
+                Move-Item -LiteralPath $directory.FullName -Destination $cacheBackup
+            }
+        }
+
+        & $CliPath plugin add $PluginSpec
+        if ($LASTEXITCODE -ne 0) { throw "OpenCode could not install the Toolbox package." }
+
+        if (Test-Path -LiteralPath $cacheBackup) { Remove-Item -LiteralPath $cacheBackup -Recurse -Force }
+        if (Test-Path -LiteralPath $configBackup) { Remove-Item -LiteralPath $configBackup -Force }
+        return $true
+    } catch {
+        if (Test-Path -LiteralPath $configBackup) {
+            Copy-Item -LiteralPath $configBackup -Destination $ConfigPath -Force
+            Remove-Item -LiteralPath $configBackup -Force
+        }
+        if (Test-Path -LiteralPath $cacheBackup) {
+            if (-not (Test-Path -LiteralPath $cacheRoot)) { New-Item -ItemType Directory -Path $cacheRoot -Force | Out-Null }
+            foreach ($directory in (Get-ChildItem -LiteralPath $cacheBackup -Directory -ErrorAction SilentlyContinue)) {
+                if (-not (Test-Path -LiteralPath (Join-Path $cacheRoot $directory.Name))) {
+                    Move-Item -LiteralPath $directory.FullName -Destination $cacheRoot
+                }
+            }
+            Remove-Item -LiteralPath $cacheBackup -Recurse -Force -ErrorAction SilentlyContinue
+        }
+        throw
+    }
+}
+
+function Show-Success([bool]$WasUpdate = $false) {
     Write-Host ""
     Write-Host ""
     Write-Host ("       " + (T "successTitle")) -ForegroundColor Green
-    Write-Host ("       " + (T "successBody")) -ForegroundColor White
+    if ($WasUpdate) {
+        Write-Host ("       " + (T "updatedBody")) -ForegroundColor White
+    } else {
+        Write-Host ("       " + (T "successBody")) -ForegroundColor White
+    }
     Write-Host ""
     Write-Host ("  " + (T "next")) -ForegroundColor Cyan
     Write-Host ("    1. " + (T "next1")) -ForegroundColor White
@@ -305,25 +425,36 @@ try {
 }
 
 Write-Step 3 (T "step3")
-Write-Host ("  " + (T "installStart")) -ForegroundColor Gray
-try {
-    & $cliPath plugin add $PluginSpec
-    $installExitCode = $LASTEXITCODE
-} catch {
-    $installExitCode = 1
-    $installError = $_.Exception.Message
+$configPath = Get-ToolboxConfigPath
+$configuredSpec = Get-ConfiguredToolboxSpec $configPath
+$wasUpdate = [bool]$configuredSpec
+
+if ($wasUpdate) {
+    Write-Host ("  " + (T "checkingUpdate")) -ForegroundColor Gray
+    $installedCommit = Get-InstalledToolboxCommit
+    $remoteCommit = Get-RemoteToolboxCommit
+    if ($installedCommit -and $remoteCommit -and ($installedCommit -eq $remoteCommit)) {
+        Write-Ok (T "noUpdates")
+        return
+    }
+    if (-not $remoteCommit) {
+        Write-Warn (T "updateCheckFailed")
+    } else {
+        Write-Host ("  " + (T "updateStart")) -ForegroundColor Gray
+    }
+} else {
+    Write-Host ("  " + (T "firstInstall")) -ForegroundColor Gray
 }
 
-if ($installExitCode -ne 0) {
+try {
+    $null = Invoke-ToolboxInstallOrUpdate $cliPath $configuredSpec $configPath
+} catch {
     Write-Host ""
-    Write-Fail (T "installFailed")
-    if ($installError) { Write-Host ("  " + (T "errorDetails") + ": " + $installError) -ForegroundColor DarkGray }
+    if ($wasUpdate) { Write-Fail (T "updateFailed") } else { Write-Fail (T "installFailed") }
+    Write-Host ("  " + (T "errorDetails") + ": " + $_.Exception.Message) -ForegroundColor DarkGray
     Write-Host ("  " + (T "installHelp")) -ForegroundColor Yellow
-    Write-Host ""
-    Write-Host ("  " + (T "diagnostics") + ":") -ForegroundColor Gray
-    Write-Host ("  " + $cliPath + " plugin list") -ForegroundColor White
     Write-Host ""
     return
 }
 
-Show-Success
+Show-Success -WasUpdate:$wasUpdate
