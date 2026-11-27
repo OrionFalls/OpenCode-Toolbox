@@ -71,7 +71,6 @@ function T([string]$Key) {
     if ($entry -is [hashtable]) { return $entry[$Key] }
     return $entry.PSObject.Properties[$Key].Value
 }
-function Write-Rule { Write-Host ("  " + ("-" * 108)) -ForegroundColor DarkGray }
 function Write-Step([int]$Number, [string]$Message) {
     Write-Host ""
     Write-Host ("  {0}/3  {1}" -f $Number, $Message) -ForegroundColor Cyan
@@ -260,7 +259,6 @@ exit /b %ERRORLEVEL%
 
 function Show-Success {
     Write-Host ""
-    Write-Rule
     Write-Host ""
     Write-Host ("       " + (T "successTitle")) -ForegroundColor Green
     Write-Host ("       " + (T "successBody")) -ForegroundColor White
