@@ -1,11 +1,126 @@
 # Changelog
 
-## 0.1.0 — UI prototype
+## 0.2.28
 
-- Add the OpenCode Toolbox package and Desktop GUI entrypoint.
-- Add a dedicated Toolbox settings page.
-- Add three visual module switches.
-- Add the `/toolbox` command.
-- Document GitHub-based installation and update commands.
+- Windows installer: добавлен fallback скачивания через GitHub Contents API, если raw.githubusercontent.com недоступен или curl.exe/Schannel завершает TLS-передачу ошибкой.
+- Для основного raw-запроса принудительно используется HTTP/1.1 как обход несовместимости отдельных Schannel/proxy-конфигураций с HTTP/2.
+- Ошибки обоих каналов загрузки теперь объединяются в диагностическое сообщение; проверка пустого файла сохранена.
+- Синхронизированы package metadata, GUI, серверный лог, README и CHANGELOG.
 
-The module switches are currently visual placeholders only.
+
+## 0.2.27
+
+- Bulk Model Toggle: добавлена команда Reset overrides для выбранного провайдера — удаляет только его сохранённые enabled overrides и возвращает управление штатным значениям каталога.
+- В GUI отображается количество сохранённых overrides; кнопки массового включения/отключения недоступны, если у выбранного провайдера нет моделей.
+- Добавлен серверный helper для сброса overrides и unit-тесты на выборочный сброс без затрагивания других провайдеров.
+- Синхронизированы package metadata, GUI, серверный лог, README и CHANGELOG.
+
+## 0.2.26
+
+- True Model Disabler: добавлен короткий кеш Desktop visibility policy (1,5 секунды по умолчанию) и объединение одновременных запросов чтения; не открывает SQLite для каждого model call.
+- Добавлены unit-тесты фактического SDK hook: скрытая модель отклоняется, конкурентные вызовы используют один policy read (исправлен импорт registerTrueModelDisabler в test suite).
+- Bulk Model Toggle безопасно игнорирует некорректные контейнеры overrides; добавлены проверки отключённого модуля и некорректных записей.
+- Добавлены регрессионные проверки Provider Disabler: обновляется только явно отключаемый провайдер; остальные записи и native disabled state остаются нетронутыми.
+- Синхронизированы package metadata, серверный лог, GUI, README и CHANGELOG.
+
+## 0.2.24
+
+- MCP-GUI и Custom Providers теперь имеют согласованные выключенные значения по умолчанию в серверных настройках и GUI (включая первую установку).
+- Добавлена чистая функция управления disabledMcpServers для единого списка отключённых MCP-серверов; добавлены unit-тесты сохранения независимых флагов.
+- Синхронизированы package metadata, GUI, README и CHANGELOG.
+
+## 0.2.23
+
+- Тестовая инфраструктура отделена от OpenCode runtime: нормализация и разрешение каталога конфигурации вынесены в `modules/settings.js`.
+- Общие настройки приведены к единой схеме: сохраняются и нормализуются modules, disabledProviders, disabledMcpServers и modelEnabledOverrides.
+- GUI больше не теряет список отключённых MCP-серверов при сохранении других переключателей.
+- Сохранение opencode-toolbox.json переведено на временный файл и atomic rename.
+- Резолвер каталога конфигурации и нормализация настроек вынесены в экспортируемые функции; добавлены unit-тесты.
+- Синхронизированы версия, README и CHANGELOG.
+
+## 0.2.22
+
+- True Model Disabler: отложена загрузка `bun:sqlite` до чтения внутренней базы OpenCode — Node.js может импортировать пакет без Bun.
+- Если Desktop DB отсутствует или недоступна, проверка временно отключается с диагностическим предупреждением, вместо блокировки всех моделей.
+- Алгоритм видимости вынесен в тестируемую функцию; добавлены проверки show/hide overrides, speed-вариантов, бесплатных и недавно выпущенных моделей.
+- Синхронизированы package metadata, GUI, серверный лог, README и CHANGELOG.
+
+## 0.2.21
+
+- Синхронизирован номер версии в GUI и серверном логе с package metadata.
+
+
+
+## 0.2.20
+
+- Исправлены идентификаторы IPC: теперь все контракты имеют обязательный префикс ID серверного плагина `opencode-toolbox`.
+- GUI setup снова синхронный, как требует SDK; страницы MCP-GUI и Custom Providers регистрируются после чтения общего файла настроек.
+- Обновлены версия, README и CHANGELOG.
+
+
+
+## 0.2.19
+
+- Исправлена тестовая фикстура Bulk Model Toggle: явно включён тестируемый модуль.
+- Обновлены версия, README и CHANGELOG.
+
+
+
+## 0.2.18
+
+- Исправлен тест Provider Disabler: явно задано включение модуля в фикстуре.
+- Синхронизированы номера версии в интерфейсе, серверном логе, README и package metadata.
+
+
+
+## 0.2.17
+
+- Provider Disabler больше не включает принудительно провайдеры, отключённые штатной конфигурацией OpenCode; модуль меняет activation только для ID, явно отключённых в Toolbox.
+- Добавлен регрессионный unit-тест на сохранение native disabled state.
+- Обновлены версия, README и CHANGELOG.
+
+
+
+## 0.2.16
+
+- MCP-GUI и Custom Providers регистрируются в GUI только если соответствующие модули включены в общем файле настроек.
+- Обновлены версия, README и CHANGELOG.
+
+
+
+## 0.2.15
+
+- Добавлен общий файл настроек `opencode-toolbox.json`, читаемый серверным плагином и записываемый GUI main process.
+- В интерфейсе реализованы переключатели модулей, Provider Disabler для обнаруженных провайдеров и Bulk Model Toggle для всех моделей выбранного провайдера.
+- Серверные provider/model transforms всегда зарегистрированы и читают настройки при каждом применении; выключенные модули не меняют каталог.
+- Обновлены README, версия интерфейса и package metadata.
+
+
+
+## 0.2.14
+
+- CI workflow теперь запускает `npm test` после синтаксической проверки.
+- Обновлены версия, README и CHANGELOG.
+
+
+
+## 0.2.13
+
+- Добавлены unit-тесты серверных трансформаций Provider Disabler и Bulk Model Toggle.
+- Добавлен отдельный скрипт `npm test` на встроенном Node.js test runner.
+- Обновлены версия, README и CHANGELOG.
+
+
+
+## 0.2.12
+
+- Исправлены уведомления MCP-GUI: используется документированный `ctx.toast.show`.
+- Устранён конфликт двух механизмов управления MCP: MCP-GUI остаётся единственным источником флага `mcp.servers[*].disabled`; серверная трансформация больше не перезаписывает настройки интерфейса.
+- Обновлены версия в интерфейсе, серверном логе, README и package metadata.
+
+
+
+## 0.2.11 — MCP config watcher
+
+- Refresh MCP-GUI state when the OpenCode config file changes outside the plugin.
+- Keep package, README and changelog version metadata synchronized.

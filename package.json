@@ -1,13 +1,14 @@
 {
   "name": "opencode-toolbox",
-  "version": "0.1.1",
+  "version": "0.2.28",
   "private": false,
   "description": "A modular enhancement suite for OpenCode Desktop.",
   "type": "module",
   "main": "./index.js",
   "exports": {
     ".": "./index.js",
-    "./gui-experimental": "./gui-experimental.cjs"
+    "./gui-experimental": "./gui-experimental.cjs",
+    "./bulk-model-toggle": "./modules/bulk-model-toggle.js"
   },
   "engines": {
     "node": ">=20"
@@ -27,6 +28,7 @@
   },
   "homepage": "https://github.com/OrionFalls/OpenCode-Toolbox#readme",
   "scripts": {
-    "check": "node --check index.js && node --check gui-experimental.cjs"
+    "check": "node --check index.js && node --check gui-experimental.cjs && node --check modules/true-model-disabler.js && node --check modules/provider-and-mcp.js && node --check modules/bulk-model-toggle.js && node --check modules/settings.js",
+    "test": "node --test"
   }
 }

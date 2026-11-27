@@ -1,110 +1,57 @@
 # OpenCode Toolbox
 
-**A modular enhancement suite for OpenCode Desktop.**
+**Модульный набор расширений для OpenCode Desktop.**
 
-OpenCode Toolbox is a single plugin with its own settings page. Features are organized as independent modules that can be enabled or disabled separately.
+Версия: **0.2.28**.
 
-> Current status: **0.1.0 — UI prototype.** The settings page and demo switches are implemented. The switches are not persisted and do not activate module functionality yet. The installer and GUI now support Russian and English.
+Toolbox поставляется как единый плагин: серверная часть и GUI Desktop используют общую идентичность плагина. В GUI доступны отдельные страницы Toolbox, MCP-GUI и Custom Providers.
 
-## Modules
+## Модули
 
-| Module | Purpose | Status |
+| Модуль | Назначение | Состояние |
 | --- | --- | --- |
-| **Model Visibility Guard** | Enforce the enabled/disabled model selection from OpenCode settings without removing hidden models from the catalog. | Planned |
-| **Model Group Controls** | Add bulk enable/disable controls for models in a provider group. | Planned |
-| **Provider Switcher** | Temporarily disable and re-enable a configured provider without deleting its settings or API key. | Planned |
+| True Model Disabler | Блокирует вызовы моделей, скрытых штатными настройками OpenCode, включая вызовы субагентов. | Проверяет show/hide policy при вызове, включая субагентов; кеширует политику на короткий срок (по умолчанию 1,5 секунды) и объединяет одновременные чтения. При недоступности внутреннего Desktop-хранилища временно отключается с предупреждением (fail-open); требуется runtime-проверка в Desktop |
+| Provider Disabler | Временно отключает провайдеры без удаления ключей и моделей. | UI-переключатели реализованы; состояние хранится в opencode-toolbox.json, применение после перезапуска OpenCode Desktop |
+| Bulk Model Toggle | Массово включает/отключает модели провайдера с сохранением overrides. | UI-кнопки Enable all / Disable all / Reset overrides реализованы; список сохранённых overrides виден по выбранному провайдеру; overrides хранятся по provider/model ID и применяются после перезапуска OpenCode Desktop |
+| MCP-GUI | Создание, редактирование, отключение и удаление MCP-серверов. | GUI интегрирован: local/remote, mcp.servers, disabled и удаление. MCP-GUI является единственным источником состояния disabled, чтобы серверная политика не перезаписывала выбор пользователя. |
+| Custom Providers | Управление кастомными API-провайдерами и моделями. | **GUI интегрирован** как страница OpenCode Toolbox |
 
-## Install on Windows
-
-Open PowerShell and run this single command:
+## Установка и обновление на Windows
 
 ```powershell
 irm https://raw.githubusercontent.com/OrionFalls/OpenCode-Toolbox/main/install.ps1 | iex
 ```
 
-The installer automatically selects Russian or English using the Windows display language. The same command handles both first-time installation and future updates: it compares the local Toolbox commit marker with the latest commit on GitHub, reports when no update is available, and refreshes only Toolbox when a newer commit exists. Toolbox is installed as a local OpenCode plugin, downloading its files directly from GitHub over HTTPS. This avoids Git/SSH requirements entirely.
+Повторный запуск проверяет наличие обновления и устанавливает актуальную опубликованную версию. Если raw.githubusercontent.com недоступен или Schannel завершает TLS-соединение с ошибкой, установщик автоматически переключается на GitHub Contents API. После обновления полностью перезапустите OpenCode Desktop.
 
-The installer:
+## Проверка
 
-1. Checks whether `opencode` is already available.
-2. Searches OpenCode Desktop's versioned CLI folders, common installation locations, App Paths registry entries, and Start Menu shortcuts.
-3. Verifies a candidate by running `--version`.
-4. If the CLI is bundled as `opencode-cli.exe`, creates a user-level `opencode.cmd` shim and adds its folder to the **user PATH** (no administrator rights required).
-5. If automatic discovery fails, opens a file picker so you can select `opencode.exe` or `opencode-cli.exe`.
-6. Migrates any previous package-based Toolbox installation to the local plugin folder, then downloads the current plugin files directly over HTTPS. No Git client or SSH key is required.
-
-The installer does not change machine-wide settings, does not require administrator privileges, and does not download or execute an installer for OpenCode itself.
-
-The installer supports Windows PowerShell 5.1 and newer. It uses UTF-8 output and preserves Russian text in Windows PowerShell 5.1.
-
-After success, restart OpenCode Desktop and open:
-
-**Settings → Extensions → Plugins → OpenCode Toolbox**
-
-You can also open its settings with `/toolbox`.
-
-## Languages
-
-The GUI uses OpenCode's native plugin localization API (`ctx.t` and `Plugin.define({ i18n })`). It follows the language selected in OpenCode automatically:
-
-- Russian OpenCode interface → Russian Toolbox interface.
-- English OpenCode interface → English Toolbox interface.
-- Other or unsupported locales → English fallback.
-
-No separate language setting is required.
-
-### Update
-
-Run the exact same PowerShell command shown in **Install on Windows**. It detects the existing local plugin, checks GitHub, and updates Toolbox only when a newer commit is available. You do not need a separate update command.
-
-### Remove
-
-Open PowerShell and run:
-
-```powershell
-irm https://raw.githubusercontent.com/OrionFalls/OpenCode-Toolbox/main/uninstall.ps1 | iex
-```
-
-The uninstaller locates OpenCode's active configuration directory (using `opencode debug paths` when available), checks the usual Windows/XDG config locations, and searches their plugin folders for the Toolbox package identity. It also detects and removes the previous Git/npm package cache, but only after verifying that its `package.json` belongs to `opencode-toolbox`. It does not remove other plugins, OpenCode itself, the CLI command shim, or user settings.
-
-For a safe preview without deleting anything, download the script and run it with PowerShell's `-WhatIf` preference enabled:
-
-```powershell
-$script = Join-Path $env:TEMP "opencode-toolbox-uninstall.ps1"
-Invoke-WebRequest -UseBasicParsing https://raw.githubusercontent.com/OrionFalls/OpenCode-Toolbox/main/uninstall.ps1 -OutFile $script
-$WhatIfPreference = $true
-. $script
-```
-
-Restart OpenCode Desktop after removal.
-
-## Development
-
-Requirements:
-
-- OpenCode Desktop with GUI plugin support
-- Node.js 20+
-- Bun or npm for local development
-
-Clone the repository:
-
-```bash
-git clone https://github.com/OrionFalls/OpenCode-Toolbox.git
-cd OpenCode-Toolbox
-```
-
-The GUI entrypoint is currently plain CommonJS at `gui-experimental.cjs`. OpenCode provides `@opencode/plugin/gui` and `solid-js` at runtime, so no separate GUI installation step is required.
-
-Run the syntax checks:
+Файл общих настроек нормализует значения модулей, отключённых провайдеров, MCP-серверов и overrides моделей. Запись настроек выполняется через временный файл с атомарным переименованием, чтобы частичное сохранение не повредило состояние.
 
 ```bash
 npm run check
+npm test
 ```
 
-## Compatibility
+Проверка синтаксиса не заменяет тестирование внутри OpenCode Desktop.
 
-The Desktop GUI plugin API is experimental and may change between OpenCode releases. The first prototype targets the current OpenCode Desktop GUI plugin API.
+## Архитектурные ограничения
+
+Публичный OpenCode GUI SDK позволяет добавлять собственные SettingsPage, Commands, Panels и IPC между GUI-окнами и Electron main process. Он не документирует точки расширения для встраивания контролов внутрь нативных вкладок Providers и Models. Поэтому соответствующие функции не маскируются под встроенные элементы: до появления поддерживаемого API они будут размещаться на собственных страницах Toolbox.
+
+## Заимствованный код и авторство
+
+Страница **Custom Providers** интегрирована из проекта [MoGLCL/opencode-custom-provider](https://github.com/MoGLCL/opencode-custom-provider), автор MoGlitch, upstream version 1.3.0. Сохранены исходный код, уведомления об авторских правах и MIT License в `vendor/custom-provider/LICENSE`. Интерфейс Toolbox также указывает авторство MoGlitch.
 
 ## License
 
-No license has been selected yet. Until a license is added, the repository is publicly viewable but reuse, redistribution, and modification are not granted by an open-source license.
+Основной код OpenCode Toolbox распространяется по лицензии репозитория. Заимствованный Custom Providers — MIT, copyright MoGlitch.
+
+
+## Настройки модулей
+
+MCP-GUI и Custom Providers выключены по умолчанию, пока пользователь явно не включит их. Их GUI-страницы и команды регистрируются только при включённом соответствующем модуле. Список `disabledMcpServers` является частью общего файла настроек и сохраняет независимое состояние каждого MCP-сервера.
+
+GUI и серверная часть используют общий файл `opencode-toolbox.json` в каталоге конфигурации OpenCode (рядом с `opencode.jsonc`). Переключатели модулей, отключённые провайдеры и массовые overrides моделей сохраняются в этом файле. Для применения изменений серверных трансформаций требуется перезапустить OpenCode Desktop.
+
+Модули MCP-GUI и Custom Providers также учитывают свои флаги включения при регистрации GUI-страниц; после изменения флага требуется перезапуск Desktop.
