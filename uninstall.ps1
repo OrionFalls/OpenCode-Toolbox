@@ -35,23 +35,14 @@ $messages = @{
         legacy = "Legacy package cache"
         local = "Local plugin"
     }
-    ru = @{
-        title = "Удаление OpenCode Toolbox"
-        searching = "Ищем Toolbox в каталогах конфигурации и плагинов OpenCode..."
-        found = "Найдены установки Toolbox:"
-        none = "OpenCode Toolbox не найден. Изменений нет."
-        removed = "Удалено"
-        skipped = "Пропущено"
-        complete = "Удаление OpenCode Toolbox завершено."
-        restart = "Закройте и заново откройте OpenCode Desktop, чтобы обновить список плагинов."
-        dryRun = "Предварительный просмотр: файлы не удалялись."
-        failed = "Не удалось удалить"
-        legacy = "Старый кэш пакета"
-        local = "Локальный плагин"
-    }
+    ru = [Text.Encoding]::UTF8.GetString([Convert]::FromBase64String("eyJ0aXRsZSI6ItCj0LTQsNC70LXQvdC40LUgT3BlbkNvZGUgVG9vbGJveCIsInNlYXJjaGluZyI6ItCY0YnQtdC8IFRvb2xib3gg0LIg0LrQsNGC0LDQu9C+0LPQsNGFINC60L7QvdGE0LjQs9GD0YDQsNGG0LjQuCDQuCDQv9C70LDQs9C40L3QvtCyIE9wZW5Db2RlLi4uIiwiZm91bmQiOiLQndCw0LnQtNC10L3RiyDRg9GB0YLQsNC90L7QstC60LggVG9vbGJveDoiLCJub25lIjoiT3BlbkNvZGUgVG9vbGJveCDQvdC1INC90LDQudC00LXQvS4g0JjQt9C80LXQvdC10L3QuNC5INC90LXRgi4iLCJyZW1vdmVkIjoi0KPQtNCw0LvQtdC90L4iLCJza2lwcGVkIjoi0J/RgNC+0L/Rg9GJ0LXQvdC+IiwiY29tcGxldGUiOiLQo9C00LDQu9C10L3QuNC1IE9wZW5Db2RlIFRvb2xib3gg0LfQsNCy0LXRgNGI0LXQvdC+LiIsInJlc3RhcnQiOiLQl9Cw0LrRgNC+0LnRgtC1INC4INC30LDQvdC+0LLQviDQvtGC0LrRgNC+0LnRgtC1IE9wZW5Db2RlIERlc2t0b3AsINGH0YLQvtCx0Ysg0L7QsdC90L7QstC40YLRjCDRgdC/0LjRgdC+0Log0L/Qu9Cw0LPQuNC90L7Qsi4iLCJkcnlSdW4iOiLQn9GA0LXQtNCy0LDRgNC40YLQtdC70YzQvdGL0Lkg0L/RgNC+0YHQvNC+0YLRgDog0YTQsNC50LvRiyDQvdC1INGD0LTQsNC70Y/Qu9C40YHRjC4iLCJmYWlsZWQiOiLQndC1INGD0LTQsNC70L7RgdGMINGD0LTQsNC70LjRgtGMIiwibGVnYWN5Ijoi0KHRgtCw0YDRi9C5INC60Y3RiCDQv9Cw0LrQtdGC0LAiLCJsb2NhbCI6ItCb0L7QutCw0LvRjNC90YvQuSDQv9C70LDQs9C40L0ifQ==")) | ConvertFrom-Json
 }
 
-function T([string]$Key) { return $messages[$language][$Key] }
+function T([string]$Key) {
+    $entry = $messages[$language]
+    if ($entry -is [hashtable]) { return $entry[$Key] }
+    return $entry.PSObject.Properties[$Key].Value
+}
 
 function Get-OpenCodeConfigRoots {
     $roots = New-Object System.Collections.Generic.List[string]
