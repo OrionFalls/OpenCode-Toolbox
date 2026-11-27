@@ -65,14 +65,14 @@ test("Bulk Model Toggle changes source model enabled flags without removing mode
   assert.equal(models.size, 2);
 });
 
-test("setProviderModelsEnabled persists a provider-level flag and reloads source providers", async () => {
+test("setProviderModelsEnabled persists a provider-level flag and reloads model overrides", async () => {
   const store = storage({ modules: {}, providerEnabledOverrides: {} });
   let reloaded = 0;
   const ctx = { storage: store, provider: { async reload() { reloaded++; } } };
   const result = await setProviderModelsEnabled(ctx, "alpha", false);
   assert.equal(result.enabled, false);
   assert.deepEqual(store.read().providerEnabledOverrides, { alpha: false });
-  assert.equal(reloaded, 1);
+  assert.equal(reloaded, 0, "bulk toggles must not reload the provider catalog");
 });
 
 test("Provider Disabler leaves unrelated native disabled state untouched", async () => {
