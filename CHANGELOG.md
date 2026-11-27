@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.2.14
+
+- CI workflow теперь запускает `npm test` после синтаксической проверки.
+- Обновлены версия, README и CHANGELOG.
+
+
+
 ## 0.2.13
 
 - Добавлены unit-тесты серверных трансформаций Provider Disabler и Bulk Model Toggle.
