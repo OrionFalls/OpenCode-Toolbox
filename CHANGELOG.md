@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.2.28
+
+- Windows installer: добавлен fallback скачивания через GitHub Contents API, если raw.githubusercontent.com недоступен или curl.exe/Schannel завершает TLS-передачу ошибкой.
+- Для основного raw-запроса принудительно используется HTTP/1.1 как обход несовместимости отдельных Schannel/proxy-конфигураций с HTTP/2.
+- Ошибки обоих каналов загрузки теперь объединяются в диагностическое сообщение; проверка пустого файла сохранена.
+- Синхронизированы package metadata, GUI, серверный лог, README и CHANGELOG.
+
+# Changelog
+
 ## 0.2.27
 
 - Bulk Model Toggle: добавлена команда Reset overrides для выбранного провайдера — удаляет только его сохранённые enabled overrides и возвращает управление штатным значениям каталога.
