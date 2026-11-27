@@ -29,7 +29,7 @@ export default Plugin.define({
     disposers.push(await registerProviderDisabler(ctx, getSettings));
     disposers.push(await registerBulkModelToggle(ctx, getSettings));
     const stopWatchingSettings = watchSettingsFile(ctx, settingsPath);
-    console.info("[opencode-toolbox] v0.2.39 loaded");
+    console.info("[opencode-toolbox] v0.2.40 loaded");
     return async () => {
       stopWatchingSettings();
       for (const registration of disposers.reverse()) await registration.dispose?.();

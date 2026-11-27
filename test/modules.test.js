@@ -44,30 +44,34 @@ test("setProviderDisabled persists IDs and reloads provider catalog", async () =
   assert.equal(reloaded, 1);
 });
 
-test("Bulk Model Toggle applies persistent per-model overrides", async () => {
-  let transform;
-  const ctx = { model: { transform: async (fn) => { transform = fn; return { dispose() {} }; } } };
-  const settings = { modules: { bulkModelToggle: true }, modelEnabledOverrides: { alpha: { one: false } } };
-  await registerBulkModelToggle(ctx, () => settings);
-  const models = [{ id: "one", enabled: true }, { id: "two", enabled: true }];
-  await transform({ update: (_provider, id, fn) => fn(models.find(m => m.id === id)) });
-  assert.equal(models[0].enabled, false);
-  assert.equal(models[1].enabled, true);
+test("Provider Disabler can re-enable an inactive provider from its saved ID", async () => {
+  const store = storage({ disabledProviders: ["opencode"] });
+  let reloaded = 0;
+  const ctx = { storage: store, provider: { async reload() { reloaded++; } } };
+  await setProviderDisabled(ctx, "opencode", false);
+  assert.deepEqual(store.read().disabledProviders, []);
+  assert.equal(reloaded, 1);
 });
 
-test("setProviderModelsEnabled persists all provider models and reloads catalog", async () => {
-  const store = storage({ modules: {}, modelEnabledOverrides: {} });
+test("Bulk Model Toggle changes source model enabled flags without removing models", async () => {
+  let transform;
+  const models = new Map([["one", { id: "one", enabled: true }], ["two", { id: "two", enabled: true }]]);
+  const record = { provider: { id: "alpha" }, models };
+  const ctx = { provider: { transform: async fn => { transform = fn; return { dispose() {} }; } } };
+  await registerBulkModelToggle(ctx, () => ({ providerEnabledOverrides: { alpha: false } }));
+  await transform({ list: () => [record], models: { update: (_provider, id, fn) => fn(models.get(id)) } });
+  assert.equal(models.get("one").enabled, false);
+  assert.equal(models.get("two").enabled, false);
+  assert.equal(models.size, 2);
+});
+
+test("setProviderModelsEnabled persists a provider-level flag and reloads source providers", async () => {
+  const store = storage({ modules: {}, providerEnabledOverrides: {} });
   let reloaded = 0;
-  const ctx = {
-    storage: store,
-    model: {
-      async list() { return [{ providerID: "alpha", id: "one" }, { providerID: "alpha", id: "two" }, { providerID: "beta", id: "three" }]; },
-      async reload() { reloaded++; },
-    },
-  };
+  const ctx = { storage: store, provider: { async reload() { reloaded++; } } };
   const result = await setProviderModelsEnabled(ctx, "alpha", false);
-  assert.equal(result.changed, 2);
-  assert.deepEqual(store.read().modelEnabledOverrides.alpha, { one: false, two: false });
+  assert.equal(result.enabled, false);
+  assert.deepEqual(store.read().providerEnabledOverrides, { alpha: false });
   assert.equal(reloaded, 1);
 });
 
@@ -187,22 +191,24 @@ test("Provider Disabler leaves unrelated providers untouched and only applies ex
   assert.equal(records.find(r => r.provider.id === "gamma").provider.activation, "disabled");
 });
 
-test("Bulk Model Toggle applies saved overrides regardless of obsolete module flags", async () => {
+test("Bulk Model Toggle replays legacy per-model overrides against source definitions", async () => {
   let transform;
-  const ctx = { model: { transform: async fn => { transform = fn; return { dispose() {} }; } } };
-  const settings = { modules: { bulkModelToggle: false }, modelEnabledOverrides: { alpha: { one: false } } };
-  await registerBulkModelToggle(ctx, () => settings);
-  const model = { id: "one", enabled: true };
-  await transform({ update: (_provider, _id, fn) => fn(model) });
-  assert.equal(model.enabled, false);
+  const models = new Map([["one", { id: "one", enabled: true }], ["two", { id: "two", enabled: true }]]);
+  const ctx = { provider: { transform: async fn => { transform = fn; return { dispose() {} }; } } };
+  await registerBulkModelToggle(ctx, () => ({ modelEnabledOverrides: { alpha: { one: false } } }));
+  await transform({ list: () => [{ provider: { id: "alpha" }, models }], models: { update: (_provider, id, fn) => fn(models.get(id)) } });
+  assert.equal(models.get("one").enabled, false);
+  assert.equal(models.get("two").enabled, true);
+  assert.equal(models.size, 2);
 });
 
-test("Bulk Model Toggle ignores malformed provider override containers", async () => {
+test("Bulk Model Toggle ignores malformed legacy override containers", async () => {
   let transform;
-  const ctx = { model: { transform: async fn => { transform = fn; return { dispose() {} }; } } };
-  await registerBulkModelToggle(ctx, () => ({ modules: { bulkModelToggle: true }, modelEnabledOverrides: { alpha: [] } }));
+  const models = new Map([["one", { id: "one", enabled: true }]]);
+  const ctx = { provider: { transform: async fn => { transform = fn; return { dispose() {} }; } } };
+  await registerBulkModelToggle(ctx, () => ({ modelEnabledOverrides: { alpha: [] } }));
   let updated = false;
-  await transform({ update: () => { updated = true; } });
+  await transform({ list: () => [{ provider: { id: "alpha" }, models }], models: { update: () => { updated = true; } } });
   assert.equal(updated, false);
 });
 
@@ -233,20 +239,21 @@ test("True Model Disabler rejects hidden models through the SDK hook", async () 
 });
 
 
-test("Bulk Model Toggle reset removes only the selected provider overrides", async () => {
-  const store = storage({ modelEnabledOverrides: { alpha: { one: false, two: true }, beta: { three: false } } });
+test("Bulk Model Toggle reset removes only selected provider overrides", async () => {
+  const store = storage({ providerEnabledOverrides: { alpha: false, beta: true }, modelEnabledOverrides: { alpha: { one: false }, beta: { two: true } } });
   let reloaded = 0;
-  const ctx = { storage: store, model: { async reload() { reloaded++; } } };
+  const ctx = { storage: store, provider: { async reload() { reloaded++; } } };
   const result = await resetProviderModelOverrides(ctx, "alpha");
   assert.equal(result.removed, 2);
-  assert.deepEqual(store.read().modelEnabledOverrides, { beta: { three: false } });
+  assert.deepEqual(store.read().providerEnabledOverrides, { beta: true });
+  assert.deepEqual(store.read().modelEnabledOverrides, { beta: { two: true } });
   assert.equal(reloaded, 1);
 });
 
-test("Bulk Model Toggle reset with no overrides does not reload the model catalog", async () => {
-  const store = storage({ modelEnabledOverrides: { beta: { three: false } } });
+test("Bulk Model Toggle reset with no overrides does not reload providers", async () => {
+  const store = storage({ providerEnabledOverrides: { beta: false } });
   let reloaded = 0;
-  const ctx = { storage: store, model: { async reload() { reloaded++; } } };
+  const ctx = { storage: store, provider: { async reload() { reloaded++; } } };
   const result = await resetProviderModelOverrides(ctx, "alpha");
   assert.equal(result.removed, 0);
   assert.equal(reloaded, 0);

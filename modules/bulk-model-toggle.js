@@ -1,15 +1,37 @@
 /**
- * Persistent bulk model policy. Overrides are stored by provider/model ID and
- * replayed on each catalogue transform while the module is enabled.
+ * Persistent bulk model policy.
+ *
+ * Model enabled state is applied to provider source definitions. This keeps
+ * disabled models in the native Models settings so their switches remain
+ * visible and can be turned back on.
  */
 export async function registerBulkModelToggle(ctx, getSettings) {
-  return ctx.model.transform((editor) => {
+  return ctx.provider.transform((editor) => {
     const settings = getSettings();
-    const overrides = settings.modelEnabledOverrides || {};
-    for (const [providerID, models] of Object.entries(overrides)) {
-      if (!models || typeof models !== "object" || Array.isArray(models)) continue;
-      for (const [modelID, enabled] of Object.entries(models)) {
-        editor.update(providerID, modelID, (draft) => {
+    const providerOverrides = settings.providerEnabledOverrides || {};
+    const legacyOverrides = settings.modelEnabledOverrides || {};
+
+    for (const record of editor.list()) {
+      const providerID = record.provider.id;
+      const models = record.models;
+      if (!(models instanceof Map)) continue;
+
+      if (Object.prototype.hasOwnProperty.call(providerOverrides, providerID)) {
+        const enabled = Boolean(providerOverrides[providerID]);
+        for (const modelID of models.keys()) {
+          editor.models.update(providerID, modelID, (draft) => {
+            draft.enabled = enabled;
+          });
+        }
+        continue;
+      }
+
+      // Backward compatibility with per-model overrides saved by versions <= 0.2.39.
+      const perModel = legacyOverrides[providerID];
+      if (!perModel || typeof perModel !== "object" || Array.isArray(perModel)) continue;
+      for (const [modelID, enabled] of Object.entries(perModel)) {
+        if (!models.has(modelID)) continue;
+        editor.models.update(providerID, modelID, (draft) => {
           draft.enabled = Boolean(enabled);
         });
       }
@@ -18,37 +40,32 @@ export async function registerBulkModelToggle(ctx, getSettings) {
 }
 
 export async function setProviderModelsEnabled(ctx, providerID, enabled, runtimeSettings) {
-  const models = await ctx.model.list();
-  const targets = models.filter((model) => model.providerID === providerID);
-  if (!targets.length) return { changed: 0, providerID, enabled: Boolean(enabled) };
-
+  if (!providerID) throw new Error("providerID is required");
   const current = await ctx.storage.get("settings") || {};
-  const overrides = { ...(current.modelEnabledOverrides || {}) };
-  overrides[providerID] = { ...(overrides[providerID] || {}) };
-  for (const model of targets) overrides[providerID][model.id] = Boolean(enabled);
-
-  const next = { ...current, modelEnabledOverrides: overrides };
-  if (runtimeSettings) runtimeSettings.modelEnabledOverrides = overrides;
+  const providerEnabledOverrides = {
+    ...(current.providerEnabledOverrides || {}),
+    [providerID]: Boolean(enabled),
+  };
+  const next = { ...current, providerEnabledOverrides };
+  if (runtimeSettings) Object.assign(runtimeSettings, next);
   await ctx.storage.set("settings", next);
-  await ctx.model.reload();
-  return { changed: targets.length, providerID, enabled: Boolean(enabled) };
+  await ctx.provider.reload();
+  return { providerID, enabled: Boolean(enabled) };
 }
 
-
-/**
- * Remove only the saved model-enabled overrides for one provider.
- * Native/catalog defaults become authoritative again after reload.
- */
 export async function resetProviderModelOverrides(ctx, providerID, runtimeSettings) {
   const current = await ctx.storage.get("settings") || {};
-  const overrides = { ...(current.modelEnabledOverrides || {}) };
-  const removed = overrides[providerID] && typeof overrides[providerID] === "object"
-    ? Object.keys(overrides[providerID]).length
+  const providerEnabledOverrides = { ...(current.providerEnabledOverrides || {}) };
+  const legacyOverrides = { ...(current.modelEnabledOverrides || {}) };
+  const hadProviderOverride = Object.prototype.hasOwnProperty.call(providerEnabledOverrides, providerID);
+  const removedLegacy = legacyOverrides[providerID] && typeof legacyOverrides[providerID] === "object"
+    ? Object.keys(legacyOverrides[providerID]).length
     : 0;
-  delete overrides[providerID];
-  const next = { ...current, modelEnabledOverrides: overrides };
-  if (runtimeSettings) runtimeSettings.modelEnabledOverrides = overrides;
+  delete providerEnabledOverrides[providerID];
+  delete legacyOverrides[providerID];
+  const next = { ...current, providerEnabledOverrides, modelEnabledOverrides: legacyOverrides };
+  if (runtimeSettings) Object.assign(runtimeSettings, next);
   await ctx.storage.set("settings", next);
-  if (removed > 0) await ctx.model.reload();
-  return { removed, providerID };
+  if (hadProviderOverride || removedLegacy > 0) await ctx.provider.reload();
+  return { removed: (hadProviderOverride ? 1 : 0) + removedLegacy, providerID };
 }

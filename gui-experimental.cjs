@@ -4701,6 +4701,10 @@ function setupToolboxPage(ctx) {
           const pd=pr?.data??pr, md=mr?.data??mr;
           const pRows=Array.isArray(pd)?pd:Object.values(pd?.all||pd?.connected||pd?.providers||pd||{});
           const clean=pRows.map(p=>({id:p.id||p.provider?.id,name:p.name||p.provider?.name||p.id||p.provider?.id})).filter(p=>p.id);
+          // Inactive providers are omitted by the active provider API. Keep a
+          // recoverable row for every Toolbox-disabled provider.
+          const known=new Set(clean.map(p=>p.id));
+          for(const id of parsed.disabledProviders||[])if(!known.has(id))clean.push({id,name:id});
           const mRows=Array.isArray(md)?md:Object.values(md?.models||md||{});
           setProviders(clean);setModels(mRows.map(m=>({id:m.id,providerID:m.providerID,name:m.name||m.id})).filter(m=>m.id&&m.providerID));
           if(!selected()&&clean.length)setSelected(clean[0].id);
@@ -4720,11 +4724,10 @@ function setupToolboxPage(ctx) {
         void save({...settings(),disabledProviders:[...ids]});
       };
       const bulk=enabled=>{
-        const id=selected(), target=models().filter(m=>m.providerID===id);
-        if(!id||!target.length){setStatus("No models found for the selected provider.");return;}
-        const overrides={...(settings().modelEnabledOverrides||{}),[id]:{...(settings().modelEnabledOverrides?.[id]||{})}};
-        for(const m of target)overrides[id][m.id]=Boolean(enabled);
-        void save({...settings(),modelEnabledOverrides:overrides});
+        const id=selected();
+        if(!id){setStatus("Select a provider first.");return;}
+        const overrides={...(settings().providerEnabledOverrides||{}),[id]:Boolean(enabled)};
+        void save({...settings(),providerEnabledOverrides:overrides});
       };
       void load();
       return createComponent(ui.SettingsLayout,{
@@ -4743,17 +4746,16 @@ function setupToolboxPage(ctx) {
            }}),
            createComponent(ui.SettingsSection,{title:"Bulk Model Toggle",get children(){
              const options=providers().map(p=>({value:p.id,label:p.name+" ("+p.id+")"}));
-             const hasModels=models().some(m=>m.providerID===selected());
              return [
                createComponent(ui.SettingsRow,{title:"Provider",get children(){return createComponent(ui.Select,{label:"Provider",options,value:selected(),onChange:setSelected});}}),
                createComponent(ui.SettingsRow,{title:"Models",get children(){return h("div",{class:"cp-row-controls"},
-                 createComponent(ui.Button,{variant:"contrast",size:"small",busy:busy(),disabled:!hasModels,onClick:()=>bulk(true),children:"Enable all"}),
-                 createComponent(ui.Button,{variant:"neutral",size:"small",busy:busy(),disabled:!hasModels,onClick:()=>bulk(false),children:"Disable all"})
+                 createComponent(ui.Button,{variant:"contrast",size:"small",busy:busy(),disabled:!selected(),onClick:()=>bulk(true),children:"Enable all"}),
+                 createComponent(ui.Button,{variant:"neutral",size:"small",busy:busy(),disabled:!selected(),onClick:()=>bulk(false),children:"Disable all"})
                );}})
              ];
            }}),
 createComponent(ui.SettingsSection,{title:"About",get children(){return [
-            createComponent(ui.SettingsRow,{title:"Version",description:"0.2.39"}),
+            createComponent(ui.SettingsRow,{title:"Version",description:"0.2.40"}),
             createComponent(ui.SettingsRow,{title:"Settings file",description:"opencode-toolbox.json in the OpenCode config directory."}),
             createComponent(ui.SettingsRow,{title:"Custom Providers attribution",description:"Based on MoGLCL/opencode-custom-provider by MoGlitch. MIT License."}),
             createComponent(ui.SettingsRow,{title:"Status",description:status()||"Ready"})
