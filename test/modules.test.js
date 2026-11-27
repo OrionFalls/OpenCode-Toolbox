@@ -1,5 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import path from "node:path";
 import { registerProviderDisabler, setProviderDisabled } from "../modules/provider-and-mcp.js";
 import { registerBulkModelToggle, setProviderModelsEnabled } from "../modules/bulk-model-toggle.js";
 import { getAllowedModels, resolveDesktopDatabasePath } from "../modules/true-model-disabler.js";
@@ -79,8 +80,9 @@ test("Provider Disabler leaves unrelated native disabled state untouched", async
 });
 
 
-test("True Model Disabler resolves Windows DB path lazily", () => {
-  assert.equal(resolveDesktopDatabasePath({ APPDATA: "C:\\\\Users\\\\Test\\\\AppData\\\\Roaming" }), "C:\\\\Users\\\\Test\\\\AppData\\\\Roaming\\\\ai.opencode.desktop\\\\drafts.sqlite");
+test("True Model Disabler resolves the Desktop database path lazily", () => {
+  const resolved = resolveDesktopDatabasePath({ APPDATA: "/profile/appdata" });
+  assert.equal(resolved, path.join("/profile/appdata", "ai.opencode.desktop", "drafts.sqlite"));
 });
 
 test("True Model Disabler explicit show/hide overrides include speed variants", () => {
