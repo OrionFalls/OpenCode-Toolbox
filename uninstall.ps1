@@ -173,13 +173,26 @@ foreach ($installation in $installations) {
             Write-Host ("WhatIf: Would remove {0}" -f $installation.Path) -ForegroundColor Yellow
             $skipped++
         } else {
-            Remove-Item -LiteralPath $installation.Path -Recurse -Force
+            # Use .NET filesystem APIs instead of Remove-Item so the script behaves
+            # consistently when downloaded and executed through irm | iex in Windows PowerShell 5.1.
+            if (Test-Path -LiteralPath $installation.Path -PathType Container) {
+                [System.IO.Directory]::Delete($installation.Path, $true)
+            } elseif (Test-Path -LiteralPath $installation.Path -PathType Leaf) {
+                [System.IO.File]::Delete($installation.Path)
+            } else {
+                throw "The detected installation path no longer exists."
+            }
+            if (Test-Path -LiteralPath $installation.Path) {
+                throw "The installation directory still exists after the removal attempt."
+            }
             Write-Host ("  {0}: {1}" -f (T "removed"), $installation.Path) -ForegroundColor Green
             $removed++
         }
     } catch {
         Write-Host ("  {0}: {1}" -f (T "failed"), $installation.Path) -ForegroundColor Red
-        Write-Host ("    " + $_.Exception.Message) -ForegroundColor DarkGray
+        $detail = $_.Exception.Message
+        if ([string]::IsNullOrWhiteSpace($detail)) { $detail = $_.ToString() }
+        Write-Host ("    " + $detail) -ForegroundColor DarkGray
         $failed++
     }
 }
