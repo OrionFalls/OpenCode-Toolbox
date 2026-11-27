@@ -2,6 +2,7 @@
 
 ## 0.2.23
 
+- Тестовая инфраструктура отделена от OpenCode runtime: нормализация и разрешение каталога конфигурации вынесены в `modules/settings.js`.
 - Общие настройки приведены к единой схеме: сохраняются и нормализуются modules, disabledProviders, disabledMcpServers и modelEnabledOverrides.
 - GUI больше не теряет список отключённых MCP-серверов при сохранении других переключателей.
 - Сохранение opencode-toolbox.json переведено на временный файл и atomic rename.

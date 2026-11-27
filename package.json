@@ -28,7 +28,7 @@
   },
   "homepage": "https://github.com/OrionFalls/OpenCode-Toolbox#readme",
   "scripts": {
-    "check": "node --check index.js && node --check gui-experimental.cjs && node --check modules/true-model-disabler.js && node --check modules/provider-and-mcp.js && node --check modules/bulk-model-toggle.js",
+    "check": "node --check index.js && node --check gui-experimental.cjs && node --check modules/true-model-disabler.js && node --check modules/provider-and-mcp.js && node --check modules/bulk-model-toggle.js && node --check modules/settings.js",
     "test": "node --test"
   }
 }
