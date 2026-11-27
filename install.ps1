@@ -424,13 +424,41 @@ function Invoke-ToolboxInstallOrUpdate([string]$CliPath, [string]$ConfiguredSpec
         }
 
         $baseUrl = "https://raw.githubusercontent.com/OrionFalls/OpenCode-Toolbox/$Commit"
-        foreach ($file in @("package.json", "index.js", "gui-experimental.cjs")) {
-            Download-ToolboxFile ($baseUrl + "/" + $file) (Join-Path $stagingDirectory $file)
+        $filesToDownload = @(
+            "package.json",
+            "index.js",
+            "gui-experimental.cjs",
+            "modules/true-model-disabler.js",
+            "modules/provider-and-mcp.js",
+            "modules/bulk-model-toggle.js",
+            "modules/settings.js",
+            "vendor/custom-provider/LICENSE",
+            "vendor/custom-provider/UPSTREAM.md"
+        )
+        foreach ($file in $filesToDownload) {
+            $destination = Join-Path $stagingDirectory $file
+            $destinationDirectory = Split-Path -Parent $destination
+            if (-not (Test-Path -LiteralPath $destinationDirectory -PathType Container)) {
+                New-Item -ItemType Directory -Path $destinationDirectory -Force | Out-Null
+            }
+            Download-ToolboxFile ($baseUrl + "/" + $file) $destination
         }
 
+        $requiredFiles = @(
+            "package.json",
+            "index.js",
+            "gui-experimental.cjs",
+            "modules/true-model-disabler.js",
+            "modules/provider-and-mcp.js",
+            "modules/bulk-model-toggle.js",
+            "modules/settings.js"
+        )
+        $missingFiles = @($requiredFiles | Where-Object {
+            -not (Test-Path -LiteralPath (Join-Path $stagingDirectory $_) -PathType Leaf)
+        })
         $package = Get-Content -LiteralPath (Join-Path $stagingDirectory "package.json") -Raw | ConvertFrom-Json
-        if ($package.name -ne "opencode-toolbox" -or -not (Test-Path -LiteralPath (Join-Path $stagingDirectory "gui-experimental.cjs"))) {
-            throw "Downloaded Toolbox package did not pass validation."
+        if ($package.name -ne "opencode-toolbox" -or $missingFiles.Count -gt 0) {
+            throw "Downloaded Toolbox package did not pass validation. Missing files: $($missingFiles -join ', ')"
         }
         Set-Content -LiteralPath (Join-Path $stagingDirectory ".toolbox-commit") -Value $Commit -Encoding ASCII
 
