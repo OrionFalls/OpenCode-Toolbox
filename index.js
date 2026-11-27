@@ -27,7 +27,7 @@ export default Plugin.define({
     disposers.push(await registerTrueModelDisabler(ctx, () => getSettings().modules.trueModelDisabler));
     disposers.push(await registerProviderDisabler(ctx, getSettings));
     disposers.push(await registerBulkModelToggle(ctx, getSettings));
-    console.info("[opencode-toolbox] v0.2.34 loaded");
+    console.info("[opencode-toolbox] v0.2.35 loaded");
     return async () => {
       for (const registration of disposers.reverse()) await registration.dispose?.();
     };

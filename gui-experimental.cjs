@@ -254,7 +254,7 @@ const ToolboxIpc = Ipc.define({
   methods: {
     getSettings: { output: Schema.String },
     saveSettings: { input: Schema.String, output: Schema.Struct({ ok: Schema.Boolean, message: Schema.String }) },
-    restartApp: { output: Schema.Struct({ ok: Schema.Boolean, message: Schema.String }) },
+    reloadWindow: { output: Schema.Struct({ ok: Schema.Boolean, message: Schema.String }) },
   },
 });
 
@@ -2332,14 +2332,17 @@ async function createMainHandler(ctx) {
         return { ok: true, message: "Saved. Restart OpenCode Desktop to apply server-side changes." };
       } catch (error) { return { ok: false, message: error instanceof Error ? error.message : String(error) }; }
     },
-    async restartApp() {
+    async reloadWindow() {
       try {
-        const { app } = require("electron");
-        setTimeout(() => {
-          app.relaunch();
-          app.exit(0);
-        }, 300);
-        return { ok: true, message: "Restarting OpenCode Desktop…" };
+        const { BrowserWindow } = require("electron");
+        const window = BrowserWindow.getFocusedWindow();
+        if (!window || window.isDestroyed()) {
+          return { ok: false, message: "No focused OpenCode window is available to reload." };
+        }
+        // Match OpenCode Desktop's View → Reload menu action: reload this
+        // window's webContents without relaunching or exiting the application.
+        window.webContents.reload();
+        return { ok: true, message: "Reloading the current OpenCode window…" };
       } catch (error) {
         return { ok: false, message: error instanceof Error ? error.message : String(error) };
       }
@@ -4731,7 +4734,7 @@ function setupToolboxPage(ctx) {
         description:"Settings are stored in opencode-toolbox.json. Restart OpenCode Desktop to apply server-side changes.",
         get actions(){return h("div",{class:"cp-row-controls"},
           createComponent(ui.Button,{variant:"neutral",size:"small",icon:"refresh",busy:busy(),onClick:()=>void load(),children:"Refresh"}),
-          createComponent(ui.Button,{variant:"contrast",size:"small",icon:"refresh-cw",onClick:async()=>{const confirmed=await ctx.dialogs.confirm({title:"Restart OpenCode Desktop?",description:"All OpenCode windows will close and the application will reopen. Unsaved input may be lost.",confirm:"Restart",cancel:"Cancel"});if(!confirmed)return;try{const r=await ipc.restartApp();if(!r.ok)setStatus("Restart failed: "+r.message);}catch(e){setStatus("Restart failed: "+String(e));}},children:"Restart OpenCode"})
+          createComponent(ui.Button,{variant:"contrast",size:"small",icon:"refresh-cw",onClick:async()=>{try{const r=await ipc.reloadWindow();if(!r.ok)setStatus("Restart failed: "+r.message);}catch(e){setStatus("Restart failed: "+String(e));}},children:"Restart OpenCode"})
         );},
         get children(){return [
           createComponent(ui.SettingsSection,{title:"Modules",get children(){
@@ -4760,7 +4763,7 @@ function setupToolboxPage(ctx) {
             ];
           }})] : []),
           createComponent(ui.SettingsSection,{title:"About",get children(){return [
-            createComponent(ui.SettingsRow,{title:"Version",description:"0.2.34"}),
+            createComponent(ui.SettingsRow,{title:"Version",description:"0.2.35"}),
             createComponent(ui.SettingsRow,{title:"Settings file",description:"opencode-toolbox.json in the OpenCode config directory."}),
             createComponent(ui.SettingsRow,{title:"Custom Providers attribution",description:"Based on MoGLCL/opencode-custom-provider by MoGlitch. MIT License."}),
             createComponent(ui.SettingsRow,{title:"Status",description:status()||"Ready"})
