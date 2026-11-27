@@ -1,7 +1,6 @@
 import { Plugin } from "@opencode/plugin";
 import { registerTrueModelDisabler } from "./modules/true-model-disabler.js";
 import { registerProviderDisabler, registerMcpPolicy } from "./modules/provider-and-mcp.js";
-import { registerBulkModelToggle } from "./modules/bulk-model-toggle.js";
 
 const DEFAULTS = {
   modules: {
@@ -13,7 +12,6 @@ const DEFAULTS = {
   },
   disabledProviders: [],
   disabledMcpServers: [],
-  modelEnabledOverrides: {},
 };
 
 export default Plugin.define({
@@ -26,7 +24,6 @@ export default Plugin.define({
       modules: { ...DEFAULTS.modules, ...(stored.modules || {}) },
       disabledProviders: Array.isArray(stored.disabledProviders) ? stored.disabledProviders : [],
       disabledMcpServers: Array.isArray(stored.disabledMcpServers) ? stored.disabledMcpServers : [],
-      modelEnabledOverrides: stored.modelEnabledOverrides && typeof stored.modelEnabledOverrides === "object" ? stored.modelEnabledOverrides : {},
     };
     await ctx.storage.set("settings", settings);
 
@@ -42,11 +39,8 @@ export default Plugin.define({
     if (settings.modules.mcpGui) {
       disposers.push(await registerMcpPolicy(ctx, getSettings));
     }
-    if (settings.modules.bulkModelToggle) {
-      disposers.push(await registerBulkModelToggle(ctx, getSettings));
-    }
 
-    console.info("[opencode-toolbox] v0.2.2 loaded");
+    console.info("[opencode-toolbox] v0.2.0 loaded");
     return async () => {
       for (const registration of disposers.reverse()) {
         await registration.dispose?.();

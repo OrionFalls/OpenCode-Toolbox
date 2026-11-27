@@ -2,7 +2,7 @@
  * Bulk model operations used by the Models page UI.
  * Model IDs are read from OpenCode at execution time, never from a cached list.
  */
-export async function setProviderModelsEnabled(ctx, providerID, enabled) {
+export async function setProviderModelsEnabled(ctx, providerID, enabled, runtimeSettings) {
   const models = await ctx.model.list({ providerID });
   if (!models.length) return { changed: 0, providerID };
   const registration = await ctx.model.transform((editor) => {

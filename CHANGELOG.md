@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.2.3 — Runtime state synchronization
+
+- Synchronize runtime transform state when provider, MCP, or bulk model policies are changed.
+- Keep module status text within the supported SettingsRow description.
+
+
 ## 0.2.2 — Runtime registration fixes
 
 - Register the persistent Bulk Model Toggle transform when the module is enabled.

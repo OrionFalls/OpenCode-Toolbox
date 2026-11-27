@@ -12,10 +12,7 @@ const { createComponent } = require("solid-js");
 function ModuleRow(ui, title, description, status) {
   return createComponent(ui.SettingsRow, {
     title,
-    description,
-    get children() {
-      return status;
-    },
+    description: description + " · " + status,
   });
 }
 

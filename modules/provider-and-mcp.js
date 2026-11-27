@@ -28,20 +28,24 @@ export async function registerMcpPolicy(ctx, getSettings) {
   });
 }
 
-export async function setProviderDisabled(ctx, providerID, disabled) {
+export async function setProviderDisabled(ctx, providerID, disabled, runtimeSettings) {
   const current = await ctx.storage.get("settings") || {};
   const ids = new Set(current.disabledProviders || []);
   if (disabled) ids.add(providerID);
   else ids.delete(providerID);
-  await ctx.storage.set("settings", { ...current, disabledProviders: [...ids] });
+  const next = { ...current, disabledProviders: [...ids] };
+  if (runtimeSettings) Object.assign(runtimeSettings, next);
+  await ctx.storage.set("settings", next);
   await ctx.provider.reload();
 }
 
-export async function setMcpDisabled(ctx, name, disabled) {
+export async function setMcpDisabled(ctx, name, disabled, runtimeSettings) {
   const current = await ctx.storage.get("settings") || {};
   const names = new Set(current.disabledMcpServers || []);
   if (disabled) names.add(name);
   else names.delete(name);
-  await ctx.storage.set("settings", { ...current, disabledMcpServers: [...names] });
+  const next = { ...current, disabledMcpServers: [...names] };
+  if (runtimeSettings) Object.assign(runtimeSettings, next);
+  await ctx.storage.set("settings", next);
   await ctx.mcp.reload();
 }
