@@ -4164,8 +4164,13 @@ function setupRenderer(ctx) {
     }
   }
 
-    const moduleSettings = getToolboxSettings();
-  const customProvidersEnabled = moduleSettings.modules?.customProviders === true;
+  let customProvidersEnabled = false;
+  void ctx.main(ToolboxIpc).getModuleSettings().then((settings) => {
+    customProvidersEnabled = settings.modules?.customProviders === true;
+  }).catch((error) => {
+    customProvidersEnabled = false;
+    ctx.toast.show({ variant: "error", title: "Custom Providers settings unavailable", description: String(error) });
+  });
   ctx.add(Command, {
     id: "manage",
     title: "Manage Custom Providers & Model Boost",
@@ -4182,6 +4187,7 @@ function setupRenderer(ctx) {
       ctx.layout.settings("custom-providers");
     },
   });
+
   ctx.add(SettingsPage, {
     id: "custom-providers",
     title: "Custom Providers",
@@ -4190,19 +4196,19 @@ function setupRenderer(ctx) {
       {
         id: "custom-providers-list",
         title: "Configured Custom Providers",
-        description: "Manage custom API providers and models",
+        description: "Manage custom API endpoints, API keys, and model definitions",
         keywords: "custom provider openai anthropic endpoint api key baseurl proxy",
       },
       {
         id: "model-boost-overrides",
         title: "Built-in & Connected Model Boost",
-        description: "Unlock higher reasoning effort levels and context limits",
-        keywords: "boost model effort xhigh max ultra opencode openai anthropic",
+        description: "Unlock Xhigh / Max / Ultra reasoning efforts & Context limits on any OpenCode model",
+        keywords: "boost model effort xhigh max ultra opencode openai anthropic agentrouter",
       },
       {
         id: "add-custom-provider",
         title: "Add Custom Provider",
-        description: "Create a custom OpenAI-compatible or Anthropic-compatible provider",
+        description: "Create a new custom OpenAI-compatible or Anthropic-compatible provider",
         keywords: "add new custom provider url key endpoint",
       },
     ],
@@ -4213,9 +4219,362 @@ function setupRenderer(ctx) {
           description: "Enable the Custom Providers module in OpenCode Toolbox settings to use this page.",
         });
       }
-      return createCustomProvidersSettingsPage();
+      const [busyReload, setBusyReload] = createSignal(false);
+      const [busyImport, setBusyImport] = createSignal(false);
+      const [desktopDismissed, setDesktopDismissed] = createSignal(false);
+
+      // Re-sync from disk whenever Custom Providers settings opens
+      void Promise.resolve().then(() => silentRefresh());
+
+      const missingDesktop = createMemo(() =>
+        (state()?.desktopCandidates || []).filter((c) => !c.alreadyExists)
+      );
+
+      return createComponent(ctx.ui.SettingsLayout, {
+        title: "Custom Providers & Model Boost",
+        description: "Configure custom API providers and unlock higher Reasoning Efforts (Xhigh / Max / Ultra) & Context limits across any model.",
+        get actions() {
+          return h(
+            "div",
+            { class: "cp-header-actions" },
+            createComponent(ctx.ui.Button, {
+              variant: "neutral",
+              size: "small",
+              onClick: openJsonImportDialog,
+              children: "Import JSON",
+            }),
+            createComponent(ctx.ui.Button, {
+              variant: "neutral",
+              size: "small",
+              icon: "refresh",
+              get busy() { return busyReload(); },
+              onClick: async () => {
+                setBusyReload(true);
+                try {
+                  await handleReload();
+                } finally {
+                  setBusyReload(false);
+                }
+              },
+              children: "Reload",
+            }),
+            createComponent(ctx.ui.Button, {
+              variant: "neutral",
+              size: "small",
+              onClick: () => openModelBoosterDialog(null),
+              children: "Boost Any Model",
+            }),
+            createComponent(ctx.ui.Button, {
+              variant: "contrast",
+              size: "small",
+              icon: "plus",
+              onClick: () => openProviderEditor(null),
+              children: "Add Provider",
+            })
+          );
+        },
+        get children() {
+          return h(
+            "div",
+            { class: "cp-stack" },
+
+            // Config Error Banner (if any)
+            createComponent(Show, {
+              get when() { return Boolean(state()?.lastError); },
+              get children() {
+                return h(
+                  "div",
+                  { class: "cp-banner cp-banner--error" },
+                  h(
+                    "div",
+                    { class: "cp-banner-text" },
+                    h("div", { class: "cp-banner-title" }, "Configuration Read Warning"),
+                    h("div", { class: "cp-banner-desc" }, () => state()?.lastError || "")
+                  ),
+                  createComponent(ctx.ui.Button, {
+                    variant: "neutral",
+                    size: "small",
+                    onClick: () => void refreshNow(),
+                    children: "Retry",
+                  })
+                );
+              },
+            }),
+
+            // 1-Click Desktop Config Import Banner
+            createComponent(Show, {
+              get when() { return !desktopDismissed() && missingDesktop().length > 0; },
+              get children() {
+                return h(
+                  "div",
+                  { class: "cp-banner" },
+                  h(
+                    "div",
+                    { class: "cp-banner-text" },
+                    h(
+                      "div",
+                      { class: "cp-banner-title" },
+                      () => `Found ${missingDesktop().length} provider(s) on Desktop`
+                    ),
+                    h(
+                      "div",
+                      { class: "cp-banner-desc" },
+                      () =>
+                        `${missingDesktop().map((p) => `${p.name} (${p.modelCount} models)`).join(", ")} in ${state()?.desktopPath || "Desktop/opencode.jsonc"}`
+                    )
+                  ),
+                  h(
+                    "div",
+                    { class: "cp-row-controls" },
+                    createComponent(ctx.ui.Button, {
+                      variant: "neutral",
+                      size: "small",
+                      onClick: () => setDesktopDismissed(true),
+                      children: "Dismiss",
+                    }),
+                    createComponent(ctx.ui.Button, {
+                      variant: "contrast",
+                      size: "small",
+                      get busy() { return busyImport(); },
+                      onClick: async () => {
+                        setBusyImport(true);
+                        try {
+                          await handleImportDesktop();
+                        } finally {
+                          setBusyImport(false);
+                        }
+                      },
+                      children: "Import Now",
+                    })
+                  )
+                );
+              },
+            }),
+
+            // Configured Providers List Section
+            createComponent(ctx.ui.SettingsSection, {
+              title: "Configured Custom Providers",
+              get children() {
+                return createComponent(Show, {
+                  get when() { return (state()?.providers || []).length > 0; },
+                  get fallback() {
+                    return h(
+                      "div",
+                      { class: "cp-empty", "data-action": "custom-providers-list" },
+                      h("div", { class: "cp-empty-title" }, "No Custom Providers Configured Yet"),
+                      h(
+                        "div",
+                        { class: "cp-empty-desc" },
+                        "Add your own OpenAI-compatible or Anthropic-compatible API endpoint, proxy, or local model server."
+                      ),
+                      h(
+                        "div",
+                        { class: "cp-header-actions" },
+                        createComponent(ctx.ui.Button, {
+                          variant: "contrast",
+                          icon: "plus",
+                          onClick: () => openProviderEditor(null),
+                          children: "Add Custom Provider",
+                        }),
+                        createComponent(ctx.ui.Button, {
+                          variant: "neutral",
+                          onClick: openJsonImportDialog,
+                          children: "Paste JSON / JSONC",
+                        })
+                      )
+                    );
+                  },
+                  get children() {
+                    return createComponent(For, {
+                      get each() { return state()?.providers || []; },
+                      children: (provider) =>
+                        createComponent(ctx.ui.SettingsRow, {
+                          id: `provider-${provider.id}`,
+                          get title() { return provider.name; },
+                          get description() {
+                            return h(
+                              "div",
+                              { class: "cp-stack", style: { gap: "4px" } },
+                              h(
+                                "div",
+                                { class: "cp-provider-meta" },
+                                h("span", { class: "cp-badge cp-badge--mono" }, () => provider.id),
+                                h("span", { class: "cp-badge" }, () => provider.protocol),
+                                h(
+                                  "span",
+                                  {
+                                    class: () =>
+                                      provider.authMode === "env"
+                                        ? provider.envPresent
+                                          ? "cp-badge cp-badge--ok"
+                                          : "cp-badge cp-badge--warn"
+                                        : provider.authMode === "key"
+                                          ? "cp-badge cp-badge--ok"
+                                          : "cp-badge",
+                                  },
+                                  () =>
+                                    provider.authMode === "env"
+                                      ? provider.envPresent
+                                        ? `env ${provider.envVar}`
+                                        : `env ${provider.envVar} (missing)`
+                                      : provider.authMode === "key"
+                                        ? `key ${provider.apiKeyMask}`
+                                        : "no auth"
+                                ),
+                                h("span", { class: "cp-badge" }, () => `${provider.models.length} model${provider.models.length === 1 ? "" : "s"}`)
+                              ),
+                              h(
+                                "div",
+                                { class: "cp-model-chips" },
+                                createComponent(For, {
+                                  get each() { return (provider.models || []).slice(0, 5); },
+                                  children: (m) =>
+                                    h(
+                                      "span",
+                                      {
+                                        class: () =>
+                                          Array.isArray(m.effortLevels) && m.effortLevels.length > 0
+                                            ? "cp-badge cp-badge--mono cp-badge--accent"
+                                            : "cp-badge cp-badge--mono",
+                                      },
+                                      () => {
+                                        const parts = [m.id];
+                                        if (m.protocol && m.protocol !== "inherit") parts.push(m.protocol);
+                                        if (m.contextLimit) parts.push(formatTokenCount(m.contextLimit));
+                                        if (Array.isArray(m.effortLevels) && m.effortLevels.length > 0) {
+                                          parts.push(formatEffortSummary(m.effortLevels));
+                                        }
+                                        return parts.join(" · ");
+                                      }
+                                    ),
+                                }),
+                                createComponent(Show, {
+                                  get when() { return (provider.models || []).length > 5; },
+                                  get children() {
+                                    return h("span", { class: "cp-badge" }, () => `+${provider.models.length - 5} more`);
+                                  },
+                                })
+                              )
+                            );
+                          },
+                          get children() {
+                            return h(
+                              "div",
+                              { class: "cp-row-controls" },
+                              createComponent(ctx.ui.Button, {
+                                variant: "neutral",
+                                size: "small",
+                                icon: "edit",
+                                onClick: () => {
+                                  const live = (state()?.providers || []).find((p) => p.id === provider.id) || provider;
+                                  openProviderEditor(live);
+                                },
+                                children: "Edit",
+                              }),
+                              createComponent(ctx.ui.IconButton, {
+                                icon: "outline-trash",
+                                get label() { return `Remove ${provider.name}`; },
+                                onClick: () => void handleDelete(provider),
+                              })
+                            );
+                          },
+                        }),
+                    });
+                  },
+                });
+              },
+            }),
+
+            // Built-in & Connected Model Boost Section (Non-custom providers!)
+            createComponent(ctx.ui.SettingsSection, {
+              title: "Built-in & Connected Model Boost",
+              get children() {
+                return h(
+                  "div",
+                  { class: "cp-stack", style: { gap: "8px" } },
+                  createComponent(ctx.ui.SettingsRow, {
+                    id: "model-boost-overrides",
+                    title: "Unlock Xhigh / Max / Ultra on Other Models",
+                    description: "Override reasoning effort tiers (beyond High) and Context/Output limits on OpenCode, OpenAI, Anthropic, Google, AgentRouter & any other provider without touching keys or integrations.",
+                    get children() {
+                      return createComponent(ctx.ui.Button, {
+                        variant: "neutral",
+                        size: "small",
+                        onClick: () => openModelBoosterDialog(null),
+                        children: "Browse & Boost Models",
+                      });
+                    },
+                  }),
+                  createComponent(For, {
+                    get each() { return state()?.modelOverrides || []; },
+                    children: (ovr) =>
+                      createComponent(ctx.ui.SettingsRow, {
+                        id: `ovr-${ovr.providerID}-${ovr.modelID}`,
+                        get title() { return `${ovr.providerID} / ${ovr.modelID}`; },
+                        get description() {
+                          return h(
+                            "div",
+                            { class: "cp-provider-meta" },
+                            h(
+                              "span",
+                              { class: "cp-badge cp-badge--accent cp-badge--mono" },
+                              () => formatEffortSummary(ovr.effortLevels || [])
+                            ),
+                            ovr.contextLimit
+                              ? h("span", { class: "cp-badge cp-badge--mono" }, () => `ctx ${formatTokenCount(ovr.contextLimit)}`)
+                              : null,
+                            ovr.outputLimit
+                              ? h("span", { class: "cp-badge cp-badge--mono" }, () => `out ${formatTokenCount(ovr.outputLimit)}`)
+                              : null
+                          );
+                        },
+                        get children() {
+                          return h(
+                            "div",
+                            { class: "cp-row-controls" },
+                            createComponent(ctx.ui.Button, {
+                              variant: "neutral",
+                              size: "small",
+                              icon: "edit",
+                              onClick: () => openModelBoosterDialog(ovr),
+                              children: "Edit",
+                            }),
+                            createComponent(ctx.ui.IconButton, {
+                              icon: "outline-trash",
+                              get label() { return `Reset ${ovr.providerID}/${ovr.modelID}`; },
+                              onClick: () => void handleResetOverride(ovr),
+                            })
+                          );
+                        },
+                      }),
+                  })
+                );
+              },
+            }),
+
+            // Config Location & Status Section
+            createComponent(ctx.ui.SettingsSection, {
+              title: "Configuration Storage",
+              get children() {
+                return createComponent(ctx.ui.SettingsRow, {
+                  id: "add-custom-provider",
+                  title: "Global OpenCode Config File (Plugin v1.3.0)",
+                  get description() {
+                    return h(
+                      "span",
+                      { class: "cp-path-mono" },
+                      () => `${state()?.configPath || "~/.config/opencode/opencode.jsonc"}${state()?.configExists ? "" : " (will be created on first save)"}`
+                    );
+                  },
+                });
+              },
+            })
+          );
+        },
+      });
     },
   });
+}
 
 function setupMcpGuiPage(ctx) {
   const ui = ctx.ui, ipc = ctx.use(McpIpc), api = () => ctx.main(McpIpc);
