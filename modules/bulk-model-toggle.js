@@ -1,71 +1,41 @@
 /**
- * Persistent bulk model policy.
- *
- * Model enabled state is applied to provider source definitions. This keeps
- * disabled models in the native Models settings so their switches remain
- * visible and can be turned back on.
+ * Update OpenCode Desktop's native Settings > Models visibility records.
+ * The native switches are persisted as show/hide entries in drafts.sqlite,
+ * not as Model.Info.enabled flags. No provider or model catalog is changed.
  */
-export async function registerBulkModelToggle(ctx, getSettings) {
-  return ctx.provider.transform((editor) => {
-    const settings = getSettings();
-    const providerOverrides = settings.providerEnabledOverrides || {};
-    const legacyOverrides = settings.modelEnabledOverrides || {};
+export function updateModelVisibilityState(currentState, providerID, modelIDs, visible) {
+  if (typeof providerID !== "string" || !providerID.trim()) {
+    throw new TypeError("providerID is required");
+  }
+  if (!Array.isArray(modelIDs)) throw new TypeError("modelIDs must be an array");
+  if (typeof visible !== "boolean") throw new TypeError("visible must be a boolean");
 
-    for (const record of editor.list()) {
-      const providerID = record.provider.id;
-      const models = record.models;
-      if (!(models instanceof Map)) continue;
+  const ids = [...new Set(modelIDs.filter((id) => typeof id === "string" && id.trim()))];
+  const source = currentState && typeof currentState === "object" && !Array.isArray(currentState)
+    ? currentState
+    : {};
+  const user = Array.isArray(source.user) ? source.user : [];
+  const targetVisibility = visible ? "show" : "hide";
+  const targetIDs = new Set(ids);
+  const found = new Set();
+  const changedIDs = new Set();
 
-      if (Object.prototype.hasOwnProperty.call(providerOverrides, providerID)) {
-        const enabled = Boolean(providerOverrides[providerID]);
-        for (const modelID of models.keys()) {
-          editor.models.update(providerID, modelID, (draft) => {
-            draft.enabled = enabled;
-          });
-        }
-        continue;
-      }
-
-      // Backward compatibility with per-model overrides saved by versions <= 0.2.39.
-      const perModel = legacyOverrides[providerID];
-      if (!perModel || typeof perModel !== "object" || Array.isArray(perModel)) continue;
-      for (const [modelID, enabled] of Object.entries(perModel)) {
-        if (!models.has(modelID)) continue;
-        editor.models.update(providerID, modelID, (draft) => {
-          draft.enabled = Boolean(enabled);
-        });
-      }
-    }
+  const nextUser = user.map((item) => {
+    if (!item || item.providerID !== providerID || !targetIDs.has(item.modelID)) return item;
+    found.add(item.modelID);
+    if (item.visibility === targetVisibility) return item;
+    changedIDs.add(item.modelID);
+    return { ...item, visibility: targetVisibility };
   });
-}
 
-export async function setProviderModelsEnabled(ctx, providerID, enabled, runtimeSettings) {
-  if (!providerID) throw new Error("providerID is required");
-  const current = await ctx.storage.get("settings") || {};
-  const providerEnabledOverrides = {
-    ...(current.providerEnabledOverrides || {}),
-    [providerID]: Boolean(enabled),
+  for (const modelID of ids) {
+    if (found.has(modelID)) continue;
+    nextUser.push({ providerID, modelID, visibility: targetVisibility });
+    changedIDs.add(modelID);
+  }
+
+  return {
+    state: { ...source, user: nextUser },
+    changed: changedIDs.size,
   };
-  const next = { ...current, providerEnabledOverrides };
-  if (runtimeSettings) Object.assign(runtimeSettings, next);
-  await ctx.storage.set("settings", next);
-  // Shared settings watcher reapplies the transform without a disruptive provider reload.
-  return { providerID, enabled: Boolean(enabled) };
-}
-
-export async function resetProviderModelOverrides(ctx, providerID, runtimeSettings) {
-  const current = await ctx.storage.get("settings") || {};
-  const providerEnabledOverrides = { ...(current.providerEnabledOverrides || {}) };
-  const legacyOverrides = { ...(current.modelEnabledOverrides || {}) };
-  const hadProviderOverride = Object.prototype.hasOwnProperty.call(providerEnabledOverrides, providerID);
-  const removedLegacy = legacyOverrides[providerID] && typeof legacyOverrides[providerID] === "object"
-    ? Object.keys(legacyOverrides[providerID]).length
-    : 0;
-  delete providerEnabledOverrides[providerID];
-  delete legacyOverrides[providerID];
-  const next = { ...current, providerEnabledOverrides, modelEnabledOverrides: legacyOverrides };
-  if (runtimeSettings) Object.assign(runtimeSettings, next);
-  await ctx.storage.set("settings", next);
-  if (hadProviderOverride || removedLegacy > 0) await ctx.provider.reload();
-  return { removed: (hadProviderOverride ? 1 : 0) + removedLegacy, providerID };
 }
