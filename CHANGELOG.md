@@ -1,7 +1,7 @@
 # Changelog
 
-## 0.2.9 — MCP-GUI SDK compatibility fixes
+## 0.2.10 — Provider transform correction
 
-- Use the documented OpenCode toast API for success and error feedback.
-- Align MCP-GUI button variants with the native component set.
-- Keep package, README and changelog version metadata synchronized.
+- Read provider IDs from ProviderRecord.provider.id, as defined by OpenCode Plugin API V2.
+- Synchronize server log and package version metadata.
+- Update README and changelog.

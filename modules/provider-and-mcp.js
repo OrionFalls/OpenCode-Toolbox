@@ -8,7 +8,8 @@
 export async function registerProviderDisabler(ctx, getSettings) {
   return ctx.provider.transform((editor) => {
     const disabled = new Set(getSettings().disabledProviders || []);
-    for (const [id] of editor.list()) {
+    for (const record of editor.list()) {
+      const id = record.provider.id;
       editor.update(id, (provider) => {
         if (disabled.has(id)) provider.activation = "disabled";
         else if (provider.activation === "disabled") provider.activation = "enabled";
