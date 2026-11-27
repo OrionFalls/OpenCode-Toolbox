@@ -46,3 +46,19 @@ test("GUI module pages call the declared ToolboxIpc method and parse its JSON pa
   assert.match(gui, /const rawSettings = await api\(\)\.getSettings\(\)/);
   assert.match(gui, /const ToolboxIpc = Ipc\.define\([\s\S]*?getSettings:\s*\{\s*output:\s*Schema\.String\s*\}/);
 });
+
+test("Toolbox hides disabled module panels and registers MCP-GUI when enabled", () => {
+  const gui = read("../gui-experimental.cjs");
+  assert.match(gui, /settings\(\)\.modules\.providerDisabler\s*\?/);
+  assert.match(gui, /settings\(\)\.modules\.bulkModelToggle\s*\?/);
+  assert.match(gui, /setupMcpGuiPage\(ctx\)/);
+  assert.match(gui, /if\s*\(!settings\.modules\?\.mcpGui\)\s*return/);
+  assert.match(gui, /if\s*\(!customProvidersEnabled\)\s*return/);
+});
+
+test("Toolbox exposes a native Desktop restart action through main-process IPC", () => {
+  const gui = read("../gui-experimental.cjs");
+  assert.match(gui, /restartApp:\s*\{\s*output:/);
+  assert.match(gui, /async restartApp\(\)[\s\S]*?app\.relaunch\(\)[\s\S]*?app\.exit\(0\)/);
+  assert.match(gui, /children:"Restart OpenCode"/);
+});

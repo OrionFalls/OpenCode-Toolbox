@@ -249,7 +249,14 @@ const McpIpc = Ipc.define({
   },
 });
 
-const ToolboxIpc = Ipc.define({ id: "opencode-toolbox.settings", methods: { getSettings: { output: Schema.String }, saveSettings: { input: Schema.String, output: Schema.Struct({ ok: Schema.Boolean, message: Schema.String }) } } });
+const ToolboxIpc = Ipc.define({
+  id: "opencode-toolbox.settings",
+  methods: {
+    getSettings: { output: Schema.String },
+    saveSettings: { input: Schema.String, output: Schema.Struct({ ok: Schema.Boolean, message: Schema.String }) },
+    restartApp: { output: Schema.Struct({ ok: Schema.Boolean, message: Schema.String }) },
+  },
+});
 
 const CustomProviderIpc = Ipc.define({
   id: "opencode-toolbox.custom-provider",
@@ -2325,6 +2332,18 @@ async function createMainHandler(ctx) {
         return { ok: true, message: "Saved. Restart OpenCode Desktop to apply server-side changes." };
       } catch (error) { return { ok: false, message: error instanceof Error ? error.message : String(error) }; }
     },
+    async restartApp() {
+      try {
+        const { app } = require("electron");
+        setTimeout(() => {
+          app.relaunch();
+          app.exit(0);
+        }, 300);
+        return { ok: true, message: "Restarting OpenCode Desktop…" };
+      } catch (error) {
+        return { ok: false, message: error instanceof Error ? error.message : String(error) };
+      }
+    },
   });
 }
 
@@ -4164,15 +4183,13 @@ function setupRenderer(ctx) {
     }
   }
 
-  let customProvidersEnabled = false;
-  void ctx.main(ToolboxIpc).getSettings().then((raw) => {
+  const registerCustomProvidersPage = async () => {
+    const raw = await ctx.main(ToolboxIpc).getSettings();
     const settings = typeof raw === "string" ? JSON.parse(raw) : raw;
-    customProvidersEnabled = settings.modules?.customProviders === true;
-  }).catch((error) => {
-    customProvidersEnabled = false;
-    ctx.toast.show({ variant: "error", title: "Custom Providers settings unavailable", description: String(error) });
-  });
-  ctx.add(Command, {
+    const customProvidersEnabled = settings.modules?.customProviders === true;
+    if (!customProvidersEnabled) return;
+
+    ctx.add(Command, {
     id: "manage",
     title: "Manage Custom Providers & Model Boost",
     description: "Manage custom API endpoints and unlock Xhigh / Max / Ultra efforts on any OpenCode model",
@@ -4575,6 +4592,10 @@ function setupRenderer(ctx) {
       });
     },
   });
+  };
+  void registerCustomProvidersPage().catch((error) => {
+    ctx.toast.show({ variant: "error", title: "Custom Providers settings unavailable", description: String(error) });
+  });
 }
 
 function setupMcpGuiPage(ctx) {
@@ -4708,7 +4729,10 @@ function setupToolboxPage(ctx) {
       return createComponent(ui.SettingsLayout,{
         title:"OpenCode Toolbox",
         description:"Settings are stored in opencode-toolbox.json. Restart OpenCode Desktop to apply server-side changes.",
-        get actions(){return createComponent(ui.Button,{variant:"neutral",size:"small",icon:"refresh",busy:busy(),onClick:()=>void load(),children:"Refresh"});},
+        get actions(){return h("div",{class:"cp-row-controls"},
+          createComponent(ui.Button,{variant:"neutral",size:"small",icon:"refresh",busy:busy(),onClick:()=>void load(),children:"Refresh"}),
+          createComponent(ui.Button,{variant:"contrast",size:"small",icon:"refresh-cw",onClick:async()=>{try{const r=await ipc.restartApp();if(!r.ok)setStatus("Restart failed: "+r.message);}catch(e){setStatus("Restart failed: "+String(e));}},children:"Restart OpenCode"})
+        );},
         get children(){return [
           createComponent(ui.SettingsSection,{title:"Modules",get children(){
             return [
@@ -4719,24 +4743,24 @@ function setupToolboxPage(ctx) {
               ["customProviders","Custom Providers","Manage custom API providers. Based on MoGlitch's MIT-licensed project."]
             ].map(([key,title,description])=>createComponent(ui.SettingsRow,{title,description,get children(){return createComponent(ui.Switch,{label:"Enabled",checked:settings().modules[key]!==false,onChange:v=>moduleSwitch(key,v)});}}));
           }}),
-          createComponent(ui.SettingsSection,{title:"Provider Disabler",get children(){
+          ...(settings().modules.providerDisabler ? [createComponent(ui.SettingsSection,{title:"Provider Disabler",get children(){
             return providers().map(p=>createComponent(ui.SettingsRow,{title:p.name,description:p.id,get children(){return createComponent(ui.Switch,{label:"Enabled",checked:!(settings().disabledProviders||[]).includes(p.id),onChange:v=>providerSwitch(p.id,v)});}}));
-          }}),
-          createComponent(ui.SettingsSection,{title:"Bulk Model Toggle",get children(){
+          }})] : []),
+          ...(settings().modules.bulkModelToggle ? [createComponent(ui.SettingsSection,{title:"Bulk Model Toggle",get children(){
             const options=providers().map(p=>({value:p.id,label:p.name+" ("+p.id+")"}));
             return [
               createComponent(ui.SettingsRow,{title:"Provider",description:"Choose which provider's models to change.",get children(){return createComponent(ui.Select,{label:"Provider",options,value:selected(),onChange:setSelected});}}),
               createComponent(ui.SettingsRow,{title:"Models found",description:String(models().filter(m=>m.providerID===selected()).length)}),
               createComponent(ui.SettingsRow,{title:"Saved overrides",description:String(overrideCount())+" model(s) overridden for this provider."}),
-              createComponent(ui.SettingsRow,{title:"Bulk actions",description:"Overrides are stored by provider/model ID. Reset removes Toolbox overrides and returns control to the provider's native model defaults.",get children(){return h("div",{class:"cp-row-controls"},
+              createComponent(ui.SettingsRow,{title:"Bulk actions",description:"Overrides are stored by provider/model ID. Restart OpenCode to apply changes. Reset removes Toolbox overrides and returns control to the provider's native model defaults.",get children(){return h("div",{class:"cp-row-controls"},
                 createComponent(ui.Button,{variant:"contrast",size:"small",onClick:()=>bulk(true),disabled:models().filter(m=>m.providerID===selected()).length===0,children:"Enable all"}),
                 createComponent(ui.Button,{variant:"neutral",size:"small",onClick:()=>bulk(false),disabled:models().filter(m=>m.providerID===selected()).length===0,children:"Disable all"}),
                 createComponent(ui.Button,{variant:"ghost",size:"small",onClick:resetBulk,disabled:overrideCount()===0,children:"Reset overrides"})
               );}})
             ];
-          }}),
+          }})] : []),
           createComponent(ui.SettingsSection,{title:"About",get children(){return [
-            createComponent(ui.SettingsRow,{title:"Version",description:"0.2.31"}),
+            createComponent(ui.SettingsRow,{title:"Version",description:"0.2.32"}),
             createComponent(ui.SettingsRow,{title:"Settings file",description:"opencode-toolbox.json in the OpenCode config directory."}),
             createComponent(ui.SettingsRow,{title:"Custom Providers attribution",description:"Based on MoGLCL/opencode-custom-provider by MoGlitch. MIT License."}),
             createComponent(ui.SettingsRow,{title:"Status",description:status()||"Ready"})
@@ -4752,6 +4776,7 @@ exports.default = Plugin.define({
   setup(ctx) {
     setupRenderer(ctx);
     setupToolboxPage(ctx);
+    setupMcpGuiPage(ctx);
   },
   main: createMainHandler,
 });

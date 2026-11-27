@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.2.32
+
+- Toolbox: нижние панели Provider Disabler и Bulk Model Toggle отображаются только при включённых соответствующих модулях.
+- MCP-GUI: исправлена причина отсутствия страницы — функция регистрации существовала, но не вызывалась из GUI setup. Страница и команда теперь появляются только при включённом модуле.
+- Custom Providers: страница и команда больше не регистрируются, когда модуль выключен.
+- Добавлена кнопка Restart OpenCode рядом с Refresh. Она вызывает штатный Electron app.relaunch() и app.exit(0), чтобы применить серверные provider/model transforms после изменения настроек.
+- Обновлены версия серверного лога, package metadata, GUI, README и CHANGELOG.
+
 ## 0.2.31
 
 - Исправлен IPC-контракт GUI: страницы Custom Providers и MCP-GUI обращались к несуществующему `getModuleSettings`, тогда как main process предоставлял `getSettings` с JSON-строкой.
