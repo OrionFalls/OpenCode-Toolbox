@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.2.29
+
+- Windows installer: удалён случайно продублированный фрагмент `Download-ToolboxFile`, который оказался после основного сценария установки и делал `install.ps1` синтаксически некорректным.
+- Проверена целостность структуры установщика; исправление TLS-загрузки версии 0.2.28 сохранено.
+- Синхронизированы package metadata, GUI, серверный лог, README и CHANGELOG.
+
 ## 0.2.28
 
 - Windows installer: добавлен fallback скачивания через GitHub Contents API, если raw.githubusercontent.com недоступен или curl.exe/Schannel завершает TLS-передачу ошибкой.
