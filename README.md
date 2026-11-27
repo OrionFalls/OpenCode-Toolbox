@@ -31,7 +31,7 @@ The installer:
 3. Verifies a candidate by running `--version`.
 4. If the CLI is bundled as `opencode-cli.exe`, creates a user-level `opencode.cmd` shim and adds its folder to the **user PATH** (no administrator rights required).
 5. If automatic discovery fails, opens a file picker so you can select `opencode.exe` or `opencode-cli.exe`.
-6. Continues with plugin installation using the exact discovered executable path, so the current session does not depend on PATH refresh.
+6. Migrates any previous package-based Toolbox installation to the local plugin folder, then downloads the current plugin files directly over HTTPS. No Git client or SSH key is required.
 
 The installer does not change machine-wide settings, does not require administrator privileges, and does not download or execute an installer for OpenCode itself.
 
@@ -60,8 +60,10 @@ Run the exact same PowerShell command shown in **Install on Windows**. It detect
 ### Remove
 
 ```powershell
-opencode plugin remove opencode-toolbox
+Remove-Item "$env:USERPROFILE\.config\opencode\plugins\opencode-toolbox" -Recurse -Force
 ```
+
+Restart OpenCode Desktop after removing the local plugin.
 
 ## Development
 
