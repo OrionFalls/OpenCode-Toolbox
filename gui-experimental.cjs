@@ -1239,6 +1239,18 @@ async function createMainHandler(ctx) {
     ? path.resolve(process.env.OPENCODE_CONFIG_DIR)
     : path.join(os.homedir(), ".config", "opencode");
 
+  async function getToolboxSettings() {
+    try {
+      const raw = await fsp.readFile(path.join(configDir, "opencode-toolbox.json"), "utf8");
+      const value = JSON.parse(raw);
+      return value && typeof value === "object" && !Array.isArray(value) ? value : {};
+    } catch (error) {
+      if (error?.code === "ENOENT") return {};
+      console.error("[opencode-toolbox] Cannot read GUI module settings:", error);
+      return {};
+    }
+  }
+
   async function resolveConfigFile() {
     const jsonc = path.join(configDir, "opencode.jsonc");
     const json = path.join(configDir, "opencode.json");
@@ -4152,15 +4164,21 @@ function setupRenderer(ctx) {
     }
   }
 
-  ctx.add(Command, {
-    id: "manage",
-    title: "Manage Custom Providers & Model Boost",
-    description: "Manage custom API endpoints and unlock Xhigh / Max / Ultra efforts on any OpenCode model",
-    keywords: "custom provider openai anthropic endpoint api key baseurl proxy models effort ultra xhigh max boost",
-    group: "Settings",
-    section: "navigation",
-    slash: { name: "custom-provider" },
-    run: () => ctx.layout.settings("custom-providers"),
+  void mainApi().getModuleSettings().then((settings) => {
+    if (!settings.modules?.customProviders) return;
+    ctx.add(Command, {
+      id: "manage",
+      title: "Manage Custom Providers & Model Boost",
+      description: "Manage custom API endpoints and unlock Xhigh / Max / Ultra efforts on any OpenCode model",
+      keywords: "custom provider openai anthropic endpoint api key baseurl proxy models effort ultra xhigh max boost",
+      group: "Settings",
+      section: "navigation",
+      slash: { name: "custom-provider" },
+      run: () => ctx.layout.settings("custom-providers"),
+    });
+  
+  }).catch((error) => {
+    ctx.toast.show({ variant: "error", title: "Custom Providers settings unavailable", description: String(error) });
   });
 
   ctx.add(SettingsPage, {
@@ -4582,10 +4600,13 @@ function setupMcpGuiPage(ctx) {
     catch(e) { await ctx.dialogs.alert({title:"MCP delete failed",description:String(e)}); }
   }
   const field=(label,value,setter,placeholder)=>h("div",{class:"cp-field"},h("div",{class:"cp-label"},label),createComponent(ui.TextInput,{label,value,placeholder,onInput:setter}));
-  ctx.add(Command,{id:"mcp-gui",title:"Manage MCP Servers",description:"Add, edit, enable, disable and remove MCP servers",keywords:"mcp server tools local remote",group:"Settings",section:"navigation",slash:{name:"mcp-gui"},run:()=>ctx.layout.settings("mcp-gui")});
-  ctx.add(SettingsPage,{
-    id:"mcp-gui",title:"MCP-GUI",icon:"server",
-    entries:[{id:"mcp-servers",title:"MCP Servers",description:"Manage local and remote MCP servers",keywords:"mcp server local remote command url"}],
+  const register = async () => {
+    const settings = await api().getModuleSettings();
+    if (!settings.modules?.mcpGui) return;
+    ctx.add(Command,{id:"mcp-gui",title:"Manage MCP Servers",description:"Add, edit, enable, disable and remove MCP servers",keywords:"mcp server tools local remote",group:"Settings",section:"navigation",slash:{name:"mcp-gui"},run:()=>ctx.layout.settings("mcp-gui")});
+    ctx.add(SettingsPage,{
+      id:"mcp-gui",title:"MCP-GUI",icon:"server",
+      entries:[{id:"mcp-servers",title:"MCP Servers",description:"Manage local and remote MCP servers",keywords:"mcp server local remote command url"}],
     render:()=>createComponent(ui.SettingsLayout,{
       title:"MCP-GUI",description:"Manage local and remote MCP servers in your OpenCode configuration.",
       get children(){ return [
@@ -4618,7 +4639,9 @@ function setupMcpGuiPage(ctx) {
         }})
       ]; }
     })
-  });
+    });
+  };
+  void register();
 }
 
 function setupToolboxPage(ctx) {
@@ -4691,7 +4714,7 @@ function setupToolboxPage(ctx) {
             ];
           }}),
           createComponent(ui.SettingsSection,{title:"About",get children(){return [
-            createComponent(ui.SettingsRow,{title:"Version",description:"0.2.24"}),
+            createComponent(ui.SettingsRow,{title:"Version",description:"0.2.25"}),
             createComponent(ui.SettingsRow,{title:"Settings file",description:"opencode-toolbox.json in the OpenCode config directory."}),
             createComponent(ui.SettingsRow,{title:"Custom Providers attribution",description:"Based on MoGLCL/opencode-custom-provider by MoGlitch. MIT License."}),
             createComponent(ui.SettingsRow,{title:"Status",description:status()||"Ready"})
