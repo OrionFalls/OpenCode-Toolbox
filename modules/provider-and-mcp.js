@@ -1,9 +1,9 @@
 /**
  * Provider and MCP policy transforms.
  *
- * The UI writes provider IDs and MCP names to the Toolbox settings record.
- * The transforms are replayable and never delete provider credentials or MCP
- * definitions. Call the relevant domain reload after changing these values.
+ * Toolbox only disables providers explicitly listed by the user. When a
+ * provider is not in that list, the transform does not touch its activation
+ * property, preserving the native OpenCode configuration.
  */
 export async function registerProviderDisabler(ctx, getSettings) {
   return ctx.provider.transform((editor) => {
@@ -12,8 +12,9 @@ export async function registerProviderDisabler(ctx, getSettings) {
     const disabled = new Set(settings.disabledProviders || []);
     for (const record of editor.list()) {
       const id = record.provider.id;
+      if (!disabled.has(id)) continue;
       editor.update(id, (provider) => {
-        if (disabled.has(id)) provider.activation = "disabled";
+        provider.activation = "disabled";
       });
     }
   });
@@ -24,7 +25,10 @@ export async function registerMcpPolicy(ctx, getSettings) {
     const disabled = new Set(getSettings().disabledMcpServers || []);
     for (const [name] of editor.list()) {
       editor.update(name, (server) => {
-        server.disabled = disabled.has(name);
+        // MCP-GUI's opencode.jsonc mcp.servers[*].disabled remains authoritative.
+        // This legacy transform is intentionally a no-op unless a Toolbox
+        // override is explicitly provided in settings.
+        if (disabled.has(name)) server.disabled = true;
       });
     }
   });

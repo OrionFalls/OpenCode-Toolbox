@@ -1,6 +1,6 @@
 /**
- * Persistent bulk model policy.
- * Overrides are stored by provider/model ID and replayed on every catalog transform.
+ * Persistent bulk model policy. Overrides are stored by provider/model ID and
+ * replayed on each catalogue transform while the module is enabled.
  */
 export async function registerBulkModelToggle(ctx, getSettings) {
   return ctx.model.transform((editor) => {
@@ -8,7 +8,7 @@ export async function registerBulkModelToggle(ctx, getSettings) {
     if (!settings.modules?.bulkModelToggle) return;
     const overrides = settings.modelEnabledOverrides || {};
     for (const [providerID, models] of Object.entries(overrides)) {
-      if (!models || typeof models !== "object") continue;
+      if (!models || typeof models !== "object" || Array.isArray(models)) continue;
       for (const [modelID, enabled] of Object.entries(models)) {
         editor.update(providerID, modelID, (draft) => {
           draft.enabled = Boolean(enabled);

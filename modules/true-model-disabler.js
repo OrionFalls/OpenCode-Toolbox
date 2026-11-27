@@ -2,6 +2,7 @@ import { existsSync } from "node:fs";
 import path from "node:path";
 
 const SIX_MONTHS = 6 * 30.436875 * 86400000;
+const POLICY_CACHE_MS = 1500;
 const modelKey = (model) => model.providerID + ":" + model.id;
 
 export function resolveDesktopDatabasePath(env = process.env, homeDir = env.USERPROFILE || env.HOME || "") {
@@ -21,7 +22,9 @@ export async function readVisibilityPolicy(options = {}) {
     const data = JSON.parse(row.value);
     const overrides = new Map();
     for (const item of Array.isArray(data.user) ? data.user : []) {
-      if (item?.providerID && item?.modelID && ["show", "hide"].includes(item.visibility)) overrides.set(item.providerID + ":" + item.modelID, item.visibility);
+      if (item?.providerID && item?.modelID && ["show", "hide"].includes(item.visibility)) {
+        overrides.set(item.providerID + ":" + item.modelID, item.visibility);
+      }
     }
     return { ready: true, overrides };
   } catch (error) {
@@ -57,11 +60,28 @@ export function getAllowedModels(models, policy, now = Date.now()) {
 
 /**
  * Enforces Desktop visibility policy at request time, including subagents.
- * When the private Desktop database is unavailable, fail open with a warning
- * rather than unexpectedly making every configured model unusable.
+ * The policy is cached briefly to avoid opening the private SQLite database
+ * for each model call. If the private database is unavailable, the module
+ * fails open with one warning rather than unexpectedly disabling all models.
  */
-export async function registerTrueModelDisabler(ctx, isEnabled) {
+export async function registerTrueModelDisabler(ctx, isEnabled, options = {}) {
   let catalog = [], warnedUnavailable = false;
+  let policyCache = null, policyCacheAt = 0, policyInFlight = null;
+  const cacheMs = Number.isFinite(options.cacheMs) ? Math.max(0, options.cacheMs) : POLICY_CACHE_MS;
+  const readPolicy = options.readPolicy || readVisibilityPolicy;
+
+  const getPolicy = async () => {
+    const now = Date.now();
+    if (policyCache && now - policyCacheAt < cacheMs) return policyCache;
+    if (policyInFlight) return policyInFlight;
+    policyInFlight = Promise.resolve().then(() => readPolicy()).then(policy => {
+      policyCache = policy;
+      policyCacheAt = Date.now();
+      return policy;
+    }).finally(() => { policyInFlight = null; });
+    return policyInFlight;
+  };
+
   const transform = await ctx.model.transform(editor => {
     catalog = editor.list().map(model => ({
       id: model.id, providerID: model.providerID, family: model.family,
@@ -70,9 +90,10 @@ export async function registerTrueModelDisabler(ctx, isEnabled) {
       experimental: model.experimental?.speed?.base ? { speed: { base: model.experimental.speed.base } } : undefined,
     }));
   });
+
   const hook = await ctx.aisdk.hook("sdk", async ({ model }) => {
     if (!isEnabled()) return;
-    const policy = await readVisibilityPolicy();
+    const policy = await getPolicy();
     if (!policy.ready) {
       if (!warnedUnavailable) {
         warnedUnavailable = true;
@@ -81,7 +102,9 @@ export async function registerTrueModelDisabler(ctx, isEnabled) {
       return;
     }
     warnedUnavailable = false;
-    if (!getAllowedModels(catalog, policy).has(modelKey(model))) throw new Error("True Model Disabler: " + model.providerID + "/" + model.id + " is disabled in OpenCode Settings > Models. This also applies to subagents.");
+    if (!getAllowedModels(catalog, policy).has(modelKey(model))) {
+      throw new Error("True Model Disabler: " + model.providerID + "/" + model.id + " is disabled in OpenCode Settings > Models. This also applies to subagents.");
+    }
   });
   console.info("[opencode-toolbox] True Model Disabler registered");
   return async () => { await hook.dispose(); await transform.dispose(); };

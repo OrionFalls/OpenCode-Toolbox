@@ -164,3 +164,64 @@ test("MCP and Custom Providers modules default to disabled", () => {
   assert.equal(value.modules.customProviders, false);
   assert.deepEqual(value.disabledMcpServers, []);
 });
+
+
+test("Provider Disabler leaves unrelated providers untouched and only applies explicit disables", async () => {
+  const records = [
+    { provider: { id: "alpha", activation: "enabled" } },
+    { provider: { id: "beta", activation: "disabled" } },
+    { provider: { id: "gamma", activation: "enabled" } },
+  ];
+  let transform;
+  const ctx = { provider: { transform: async fn => { transform = fn; return { dispose() {} }; } } };
+  await registerProviderDisabler(ctx, () => ({ modules: { providerDisabler: true }, disabledProviders: ["gamma"] }));
+  await transform({ list: () => records, update: (id, fn) => fn(records.find(r => r.provider.id === id).provider) });
+  assert.equal(records.find(r => r.provider.id === "alpha").provider.activation, "enabled");
+  assert.equal(records.find(r => r.provider.id === "beta").provider.activation, "disabled");
+  assert.equal(records.find(r => r.provider.id === "gamma").provider.activation, "disabled");
+});
+
+test("Bulk Model Toggle leaves native model states untouched when module is disabled", async () => {
+  let transform;
+  const ctx = { model: { transform: async fn => { transform = fn; return { dispose() {} }; } } };
+  const settings = { modules: { bulkModelToggle: false }, modelEnabledOverrides: { alpha: { one: false } } };
+  await registerBulkModelToggle(ctx, () => settings);
+  const model = { id: "one", enabled: true };
+  await transform({ update: (_provider, _id, fn) => fn(model) });
+  assert.equal(model.enabled, true);
+});
+
+test("Bulk Model Toggle ignores malformed provider override containers", async () => {
+  let transform;
+  const ctx = { model: { transform: async fn => { transform = fn; return { dispose() {} }; } } };
+  await registerBulkModelToggle(ctx, () => ({ modules: { bulkModelToggle: true }, modelEnabledOverrides: { alpha: [] } }));
+  let updated = false;
+  await transform({ update: () => { updated = true; } });
+  assert.equal(updated, false);
+});
+
+test("True Model Disabler coalesces concurrent policy reads and caches short-lived results", async () => {
+  let readCount = 0, hook;
+  const models = [{ id: "m", providerID: "p", family: "f", time: { released: 1 }, cost: [] }];
+  const ctx = {
+    model: { transform: async fn => { fn({ list: () => models }); return { dispose() {} }; } },
+    aisdk: { hook: async (_name, fn) => { hook = fn; return { dispose() {} }; } },
+  };
+  const policy = { ready: true, overrides: new Map([["p:m", "show"]]) };
+  await registerTrueModelDisabler(ctx, () => true, { cacheMs: 30_000, readPolicy: async () => { readCount++; await new Promise(resolve => setImmediate(resolve)); return policy; } });
+  await Promise.all([hook({ model: { id: "m", providerID: "p" } }), hook({ model: { id: "m", providerID: "p" } })]);
+  assert.equal(readCount, 1);
+  await hook({ model: { id: "m", providerID: "p" } });
+  assert.equal(readCount, 1);
+});
+
+test("True Model Disabler rejects hidden models through the SDK hook", async () => {
+  let hook;
+  const models = [{ id: "hidden", providerID: "p", family: "f", time: { released: 1 }, cost: [] }];
+  const ctx = {
+    model: { transform: async fn => { fn({ list: () => models }); return { dispose() {} }; } },
+    aisdk: { hook: async (_name, fn) => { hook = fn; return { dispose() {} }; } },
+  };
+  await registerTrueModelDisabler(ctx, () => true, { readPolicy: async () => ({ ready: true, overrides: new Map([["p:hidden", "hide"]]) }) });
+  await assert.rejects(() => hook({ model: { id: "hidden", providerID: "p" } }), /disabled in OpenCode Settings/);
+});
