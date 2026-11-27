@@ -40,8 +40,14 @@ $messages = @{
 
 function T([string]$Key) {
     $entry = $messages[$language]
-    if ($entry -is [hashtable]) { return $entry[$Key] }
-    return $entry.PSObject.Properties[$Key].Value
+    if ($null -eq $entry) { return $Key }
+    if ($entry -is [hashtable]) {
+        if ($entry.ContainsKey($Key)) { return [string]$entry[$Key] }
+        return $Key
+    }
+    $property = $entry | Select-Object -ExpandProperty $Key -ErrorAction SilentlyContinue
+    if ($null -ne $property) { return [string]$property }
+    return $Key
 }
 
 function Get-OpenCodeConfigRoots {
@@ -168,32 +174,37 @@ $skipped = 0
 $failed = 0
 
 foreach ($installation in $installations) {
+    $removeError = $null
+    if ($WhatIfPreference) {
+        Write-Host ("WhatIf: Would remove {0}" -f $installation.Path) -ForegroundColor Yellow
+        $skipped++
+        continue
+    }
+
     try {
-        if ($WhatIfPreference) {
-            Write-Host ("WhatIf: Would remove {0}" -f $installation.Path) -ForegroundColor Yellow
-            $skipped++
+        if (Test-Path -LiteralPath $installation.Path -PathType Container) {
+            [System.IO.Directory]::Delete($installation.Path, $true)
+        } elseif (Test-Path -LiteralPath $installation.Path -PathType Leaf) {
+            [System.IO.File]::Delete($installation.Path)
         } else {
-            # Use .NET filesystem APIs instead of Remove-Item so the script behaves
-            # consistently when downloaded and executed through irm | iex in Windows PowerShell 5.1.
-            if (Test-Path -LiteralPath $installation.Path -PathType Container) {
-                [System.IO.Directory]::Delete($installation.Path, $true)
-            } elseif (Test-Path -LiteralPath $installation.Path -PathType Leaf) {
-                [System.IO.File]::Delete($installation.Path)
-            } else {
-                throw "The detected installation path no longer exists."
-            }
-            if (Test-Path -LiteralPath $installation.Path) {
-                throw "The installation directory still exists after the removal attempt."
-            }
-            Write-Host ("  {0}: {1}" -f (T "removed"), $installation.Path) -ForegroundColor Green
-            $removed++
+            throw "The detected installation path no longer exists."
+        }
+        if (Test-Path -LiteralPath $installation.Path) {
+            throw "The installation path still exists after the removal attempt."
         }
     } catch {
+        $removeError = $_
+    }
+
+    if ($null -ne $removeError) {
         Write-Host ("  {0}: {1}" -f (T "failed"), $installation.Path) -ForegroundColor Red
-        $detail = $_.Exception.Message
-        if ([string]::IsNullOrWhiteSpace($detail)) { $detail = $_.ToString() }
+        $detail = $removeError.Exception.Message
+        if ([string]::IsNullOrWhiteSpace($detail)) { $detail = $removeError.ToString() }
         Write-Host ("    " + $detail) -ForegroundColor DarkGray
         $failed++
+    } else {
+        Write-Host ("  {0}: {1}" -f (T "removed"), $installation.Path) -ForegroundColor Green
+        $removed++
     }
 }
 
