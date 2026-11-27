@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.2.13
+
+- Добавлены unit-тесты серверных трансформаций Provider Disabler и Bulk Model Toggle.
+- Добавлен отдельный скрипт `npm test` на встроенном Node.js test runner.
+- Обновлены версия, README и CHANGELOG.
+
+
+
 ## 0.2.12
 
 - Исправлены уведомления MCP-GUI: используется документированный `ctx.toast.show`.

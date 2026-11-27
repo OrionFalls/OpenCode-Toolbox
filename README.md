@@ -2,7 +2,7 @@
 
 **Модульный набор расширений для OpenCode Desktop.**
 
-Версия: **0.2.12**.
+Версия: **0.2.13**.
 
 Toolbox поставляется как единый плагин: серверная часть и GUI Desktop используют общую идентичность плагина. В GUI доступны отдельные страницы Toolbox, MCP-GUI и Custom Providers.
 
@@ -28,6 +28,7 @@ irm https://raw.githubusercontent.com/OrionFalls/OpenCode-Toolbox/main/install.p
 
 ```bash
 npm run check
+npm test
 ```
 
 Проверка синтаксиса не заменяет тестирование внутри OpenCode Desktop.
