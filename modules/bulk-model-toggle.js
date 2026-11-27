@@ -4,7 +4,9 @@
  */
 export async function registerBulkModelToggle(ctx, getSettings) {
   return ctx.model.transform((editor) => {
-    const overrides = getSettings().modelEnabledOverrides || {};
+    const settings = getSettings();
+    if (!settings.modules?.bulkModelToggle) return;
+    const overrides = settings.modelEnabledOverrides || {};
     for (const [providerID, models] of Object.entries(overrides)) {
       if (!models || typeof models !== "object") continue;
       for (const [modelID, enabled] of Object.entries(models)) {
