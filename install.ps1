@@ -82,12 +82,12 @@ function Write-Fail([string]$Message) { Write-Host ("  [X]   " + $Message) -Fore
 
 function Show-Logo {
     $logo = @(
-        "__   "
-        "  ____  ____  ___  ____  _________  ____/ /__ "
-        " / __ \/ __ \/ _ \/ __ \/ ___/ __ \/ __  / _ \"
-        "/ /_/ / /_/ /  __/ / / / /__/ /_/ / /_/ /  __/"
-        "\____/ .___/\___/_/ /_/\___/\____/\__,_/\___/ "
-        "    /_/                        T O O L B O X"
+        '__   '
+        '  ____  ____  ___  ____  _________  ____/ /__ '
+        ' / __ \/ __ \/ _ \/ __ \/ ___/ __ \/ __  / _ \'
+        '/ /_/ / /_/ /  __/ / / / /__/ /_/ / /_/ /  __/'
+        '\____/ .___/\___/_/ /_/\___/\____/\__,_/\___/ '
+        '    /_/                        T O O L B O X'
     )
     foreach ($line in $logo) {
         Write-Host $line -ForegroundColor Cyan
@@ -98,7 +98,6 @@ function Show-Banner {
     Clear-Host
     Write-Host ""
     Show-Logo
-    Write-Rule
     Write-Host ""
     Write-Host ("  " + (T "welcome")) -ForegroundColor White
     Write-Host ("  " + (T "intro")) -ForegroundColor Gray
