@@ -169,13 +169,13 @@ $failed = 0
 
 foreach ($installation in $installations) {
     try {
-        if ($PSCmdlet.ShouldProcess($installation.Path, "Remove OpenCode Toolbox")) {
+        if ($WhatIfPreference) {
+            Write-Host ("WhatIf: Would remove {0}" -f $installation.Path) -ForegroundColor Yellow
+            $skipped++
+        } else {
             Remove-Item -LiteralPath $installation.Path -Recurse -Force
             Write-Host ("  {0}: {1}" -f (T "removed"), $installation.Path) -ForegroundColor Green
             $removed++
-        } else {
-            Write-Host ("  {0}: {1}" -f (T "skipped"), $installation.Path) -ForegroundColor Yellow
-            $skipped++
         }
     } catch {
         Write-Host ("  {0}: {1}" -f (T "failed"), $installation.Path) -ForegroundColor Red
