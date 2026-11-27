@@ -1,15 +1,9 @@
 # Changelog
 
-## 0.2.6 — Bulk model toggle syntax correction
+## 0.2.7 — Integrate Custom Providers GUI
 
-- Remove an invalid placeholder statement from the bulk model transform.
-- Synchronize GUI version metadata.
-- Keep README and package metadata aligned.
-
-## 0.2.5 — Persistent bulk model registration
-
-- Register Bulk Model Toggle as a long-lived model transform when enabled.
-- Persist per-provider/per-model enabled overrides in plugin storage.
-- Apply saved overrides after model catalog rebuilds.
-- Correct the model inventory call to use ctx.model.list() and filter by provider ID.
-- Update README and package/server version metadata.
+- Integrate the upstream Custom Providers settings page and main-process IPC into the Toolbox GUI plugin.
+- Keep the upstream Custom Providers page and command while adding the Toolbox page.
+- Preserve upstream MIT license and MoGlitch attribution.
+- Update package, GUI, README and changelog version metadata.
+- Document native Providers/Models tab extension limitations of the public GUI SDK.
