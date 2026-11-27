@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.2.4 — Restore vendored upstream files
+
+- Restore the complete upstream Custom Providers GUI source and MIT license in the feature branch.
+- Keep the upstream author credit visible in repository documentation.
+
+
 ## 0.2.3 — Runtime state synchronization
 
 - Synchronize runtime transform state when provider, MCP, or bulk model policies are changed.
