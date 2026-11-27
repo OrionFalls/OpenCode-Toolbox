@@ -71,7 +71,7 @@ function T([string]$Key) {
     if ($entry -is [hashtable]) { return $entry[$Key] }
     return $entry.PSObject.Properties[$Key].Value
 }
-function Write-Rule { Write-Host "  ----------------------------------------------------------------" -ForegroundColor DarkGray }
+function Write-Rule { Write-Host ("  " + ("-" * 108)) -ForegroundColor DarkGray }
 function Write-Step([int]$Number, [string]$Message) {
     Write-Host ""
     Write-Host ("  {0}/3  {1}" -f $Number, $Message) -ForegroundColor Cyan
@@ -118,7 +118,7 @@ function Show-Logo {
     }
 
     $tagline = "T  O  O  L  B  O  X"
-    $tagPad = [Math]::Max(0, 92 - $tagline.Length)
+    $tagPad = [Math]::Max(0, 108 - $tagline.Length)
     [Console]::Write(" " * $tagPad)
     $tagColors = @(
         @(244, 76, 238), @(224, 89, 245), @(204, 101, 250),
