@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import path from "node:path";
 import { registerProviderDisabler, setProviderDisabled } from "../modules/provider-and-mcp.js";
 import { registerBulkModelToggle, setProviderModelsEnabled } from "../modules/bulk-model-toggle.js";
-import { getAllowedModels, resolveDesktopDatabasePath } from "../modules/true-model-disabler.js";
+import { getAllowedModels, resolveDesktopDatabasePath, registerTrueModelDisabler } from "../modules/true-model-disabler.js";
 import { normalizeSettings, resolveConfigDir } from "../modules/settings.js";
 
 function storage(initial = {}) {
