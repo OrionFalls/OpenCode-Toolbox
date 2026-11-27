@@ -5,7 +5,7 @@
  * so the package has a stable plugin identity and can host server modules
  * in later releases.
  */
-module.exports = {
+export default {
   id: "opencode-toolbox",
   setup() {
     // Module services will be registered here in later releases.
