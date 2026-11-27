@@ -59,6 +59,7 @@ test("Toolbox hides disabled module panels and registers MCP-GUI when enabled", 
 test("Toolbox exposes a native Desktop restart action through main-process IPC", () => {
   const gui = read("../gui-experimental.cjs");
   assert.match(gui, /reloadWindow:\s*\{\s*output:/);
-  assert.match(gui, /async reloadWindow\(\)[\s\S]*?BrowserWindow\.getFocusedWindow\(\)[\s\S]*?window\.webContents\.reload\(\)/);\n  assert.doesNotMatch(gui, /app\.relaunch\(\)|app\.exit\(0\)/);
+  assert.match(gui, /async reloadWindow\(\)[\s\S]*?BrowserWindow\.getFocusedWindow\(\)[\s\S]*?window\.webContents\.reload\(\)/);
+  assert.doesNotMatch(gui, /app\.relaunch\(\)|app\.exit\(0\)/);
   assert.match(gui, /children:"Restart OpenCode"/);
 });
