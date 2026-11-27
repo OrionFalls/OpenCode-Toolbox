@@ -14,7 +14,7 @@ function ModuleRow(ui, title, description, status) {
     title,
     description,
     get children() {
-      return createComponent(ui.Text, { children: status });
+      return status;
     },
   });
 }
@@ -44,7 +44,7 @@ function ToolboxPage(ctx) {
             return [
               createComponent(ui.SettingsRow, {
                 title: "Версия",
-                description: "0.2.0",
+                description: "0.2.2",
               }),
               createComponent(ui.SettingsRow, {
                 title: "Авторство Custom Providers",

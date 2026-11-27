@@ -1,13 +1,14 @@
 /**
  * Provider and MCP policy transforms.
- * Provider and MCP definitions remain intact; only activation/disabled state changes.
+ *
+ * The UI writes provider IDs and MCP names to the Toolbox settings record.
+ * The transforms are replayable and never delete provider credentials or MCP
+ * definitions. Call the relevant domain reload after changing these values.
  */
 export async function registerProviderDisabler(ctx, getSettings) {
   return ctx.provider.transform((editor) => {
     const disabled = new Set(getSettings().disabledProviders || []);
-    for (const record of editor.list()) {
-      const id = record.provider.id;
-      if (!id) continue;
+    for (const [id] of editor.list()) {
       editor.update(id, (provider) => {
         if (disabled.has(id)) provider.activation = "disabled";
         else if (provider.activation === "disabled") provider.activation = "enabled";

@@ -1,11 +1,17 @@
 # Changelog
 
+## 0.2.2 — Runtime registration fixes
+
+- Register the persistent Bulk Model Toggle transform when the module is enabled.
+- Add the model override store to default settings.
+- Correct GUI rows to use SettingsRow properties only.
+- Synchronize runtime and GUI version strings.
+
 ## 0.2.1 — Policy persistence and upstream source import
 
 - Correct provider transform iteration to use ProviderRecord.provider.id.
 - Make bulk model overrides persistent across model catalog reloads.
-- Read current model inventory from the OpenCode model API before applying bulk operations.
-- Import the upstream Custom Providers GUI source and its original MIT license into `vendor/custom-provider`.
+- Import the upstream Custom Providers GUI source and original MIT license.
 - Update documentation and version metadata.
 
 ## 0.2.0 — Modular foundation
@@ -19,4 +25,4 @@
 
 - Add the OpenCode Toolbox package and Desktop GUI entrypoint.
 - Add a dedicated Toolbox settings page.
-- Add the `/toolbox` command.
+- Add the /toolbox command.

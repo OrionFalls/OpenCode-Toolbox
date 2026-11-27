@@ -13,6 +13,7 @@ const DEFAULTS = {
   },
   disabledProviders: [],
   disabledMcpServers: [],
+  modelEnabledOverrides: {},
 };
 
 export default Plugin.define({
@@ -41,8 +42,11 @@ export default Plugin.define({
     if (settings.modules.mcpGui) {
       disposers.push(await registerMcpPolicy(ctx, getSettings));
     }
+    if (settings.modules.bulkModelToggle) {
+      disposers.push(await registerBulkModelToggle(ctx, getSettings));
+    }
 
-    console.info("[opencode-toolbox] v0.2.0 loaded");
+    console.info("[opencode-toolbox] v0.2.2 loaded");
     return async () => {
       for (const registration of disposers.reverse()) {
         await registration.dispose?.();
