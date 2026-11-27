@@ -2,7 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import path from "node:path";
 import { registerProviderDisabler, setProviderDisabled } from "../modules/provider-and-mcp.js";
-import { registerBulkModelToggle, setProviderModelsEnabled, resetProviderModelOverrides } from "../modules/bulk-model-toggle.js";
+import { updateModelVisibilityState } from "../modules/bulk-model-toggle.js";
 import { getAllowedModels, resolveDesktopDatabasePath, registerTrueModelDisabler } from "../modules/true-model-disabler.js";
 import { normalizeSettings, resolveConfigDir } from "../modules/settings.js";
 
@@ -53,26 +53,39 @@ test("Provider Disabler can re-enable an inactive provider from its saved ID", a
   assert.equal(reloaded, 1);
 });
 
-test("Bulk Model Toggle changes source model enabled flags without removing models", async () => {
-  let transform;
-  const models = new Map([["one", { id: "one", enabled: true }], ["two", { id: "two", enabled: true }]]);
-  const record = { provider: { id: "alpha" }, models };
-  const ctx = { provider: { transform: async fn => { transform = fn; return { dispose() {} }; } } };
-  await registerBulkModelToggle(ctx, () => ({ providerEnabledOverrides: { alpha: false } }));
-  await transform({ list: () => [record], models: { update: (_provider, id, fn) => fn(models.get(id)) } });
-  assert.equal(models.get("one").enabled, false);
-  assert.equal(models.get("two").enabled, false);
-  assert.equal(models.size, 2);
+test("Bulk Model Toggle writes native hide visibility while preserving catalog models and other providers", () => {
+  const initial = {
+    user: [
+      { providerID: "groq", modelID: "one", visibility: "show", favorite: true },
+      { providerID: "other", modelID: "keep", visibility: "hide" },
+    ],
+    recent: [{ providerID: "other", modelID: "keep" }],
+    variant: { "other/keep": "high" },
+  };
+  const result = updateModelVisibilityState(initial, "groq", ["one", "two"], false);
+  assert.equal(result.changed, 2);
+  assert.deepEqual(result.state.user, [
+    { providerID: "groq", modelID: "one", visibility: "hide", favorite: true },
+    { providerID: "other", modelID: "keep", visibility: "hide" },
+    { providerID: "groq", modelID: "two", visibility: "hide" },
+  ]);
+  assert.deepEqual(result.state.recent, initial.recent);
+  assert.deepEqual(result.state.variant, initial.variant);
+  assert.equal(initial.user[0].visibility, "show");
 });
 
-test("setProviderModelsEnabled persists a provider-level flag and reloads model overrides", async () => {
-  const store = storage({ modules: {}, providerEnabledOverrides: {} });
-  let reloaded = 0;
-  const ctx = { storage: store, provider: { async reload() { reloaded++; } } };
-  const result = await setProviderModelsEnabled(ctx, "alpha", false);
-  assert.equal(result.enabled, false);
-  assert.deepEqual(store.read().providerEnabledOverrides, { alpha: false });
-  assert.equal(reloaded, 0, "bulk toggles must not reload the provider catalog");
+test("Bulk Model Toggle restores native show visibility and avoids redundant writes", () => {
+  const hidden = {
+    user: [
+      { providerID: "groq", modelID: "one", visibility: "hide" },
+      { providerID: "groq", modelID: "two", visibility: "hide" },
+    ],
+  };
+  const enabled = updateModelVisibilityState(hidden, "groq", ["one", "two", "two"], true);
+  assert.equal(enabled.changed, 2);
+  assert.deepEqual(enabled.state.user.map(item => item.visibility), ["show", "show"]);
+  const unchanged = updateModelVisibilityState(enabled.state, "groq", ["one", "two"], true);
+  assert.equal(unchanged.changed, 0);
 });
 
 test("Provider Disabler leaves unrelated native disabled state untouched", async () => {
@@ -123,13 +136,15 @@ test("Shared settings normalization preserves MCP state and unrelated fields", (
     disabledProviders: ["alpha", "alpha", "", 4],
     disabledMcpServers: ["ssh", "ssh", null],
     modelEnabledOverrides: { alpha: { m1: false } },
+    providerEnabledOverrides: { alpha: false },
     futureOption: "keep",
   });
   assert.equal(value.modules.providerDisabler, true);
   assert.equal(value.modules.trueModelDisabler, true);
   assert.deepEqual(value.disabledProviders, ["alpha"]);
   assert.deepEqual(value.disabledMcpServers, ["ssh"]);
-  assert.deepEqual(value.modelEnabledOverrides, { alpha: { m1: false } });
+  assert.equal(Object.hasOwn(value, "modelEnabledOverrides"), false);
+  assert.equal(Object.hasOwn(value, "providerEnabledOverrides"), false);
   assert.equal(value.futureOption, "keep");
 });
 
@@ -139,6 +154,7 @@ test("Shared settings normalization rejects malformed nested collections", () =>
     disabledProviders: "alpha",
     disabledMcpServers: {},
     modelEnabledOverrides: [],
+    providerEnabledOverrides: [],
   });
   assert.equal(value.modules.providerDisabler, true);
   assert.equal(value.modules.bulkModelToggle, true);
@@ -146,7 +162,8 @@ test("Shared settings normalization rejects malformed nested collections", () =>
   assert.equal(value.modules.customProviders, true);
   assert.deepEqual(value.disabledProviders, []);
   assert.deepEqual(value.disabledMcpServers, []);
-  assert.deepEqual(value.modelEnabledOverrides, {});
+  assert.equal(Object.hasOwn(value, "modelEnabledOverrides"), false);
+  assert.equal(Object.hasOwn(value, "providerEnabledOverrides"), false);
 });
 
 test("Config directory resolver honours OPENCODE_CONFIG_DIR and falls back predictably", () => {
@@ -191,27 +208,6 @@ test("Provider Disabler leaves unrelated providers untouched and only applies ex
   assert.equal(records.find(r => r.provider.id === "gamma").provider.activation, "disabled");
 });
 
-test("Bulk Model Toggle replays legacy per-model overrides against source definitions", async () => {
-  let transform;
-  const models = new Map([["one", { id: "one", enabled: true }], ["two", { id: "two", enabled: true }]]);
-  const ctx = { provider: { transform: async fn => { transform = fn; return { dispose() {} }; } } };
-  await registerBulkModelToggle(ctx, () => ({ modelEnabledOverrides: { alpha: { one: false } } }));
-  await transform({ list: () => [{ provider: { id: "alpha" }, models }], models: { update: (_provider, id, fn) => fn(models.get(id)) } });
-  assert.equal(models.get("one").enabled, false);
-  assert.equal(models.get("two").enabled, true);
-  assert.equal(models.size, 2);
-});
-
-test("Bulk Model Toggle ignores malformed legacy override containers", async () => {
-  let transform;
-  const models = new Map([["one", { id: "one", enabled: true }]]);
-  const ctx = { provider: { transform: async fn => { transform = fn; return { dispose() {} }; } } };
-  await registerBulkModelToggle(ctx, () => ({ modelEnabledOverrides: { alpha: [] } }));
-  let updated = false;
-  await transform({ list: () => [{ provider: { id: "alpha" }, models }], models: { update: () => { updated = true; } } });
-  assert.equal(updated, false);
-});
-
 test("True Model Disabler coalesces concurrent policy reads and caches short-lived results", async () => {
   let readCount = 0, hook;
   const models = [{ id: "m", providerID: "p", family: "f", time: { released: 1 }, cost: [] }];
@@ -238,26 +234,6 @@ test("True Model Disabler rejects hidden models through the SDK hook", async () 
   await assert.rejects(() => hook({ model: { id: "hidden", providerID: "p" } }), /disabled in OpenCode Settings/);
 });
 
-
-test("Bulk Model Toggle reset removes only selected provider overrides", async () => {
-  const store = storage({ providerEnabledOverrides: { alpha: false, beta: true }, modelEnabledOverrides: { alpha: { one: false }, beta: { two: true } } });
-  let reloaded = 0;
-  const ctx = { storage: store, provider: { async reload() { reloaded++; } } };
-  const result = await resetProviderModelOverrides(ctx, "alpha");
-  assert.equal(result.removed, 2);
-  assert.deepEqual(store.read().providerEnabledOverrides, { beta: true });
-  assert.deepEqual(store.read().modelEnabledOverrides, { beta: { two: true } });
-  assert.equal(reloaded, 1);
-});
-
-test("Bulk Model Toggle reset with no overrides does not reload providers", async () => {
-  const store = storage({ providerEnabledOverrides: { beta: false } });
-  let reloaded = 0;
-  const ctx = { storage: store, provider: { async reload() { reloaded++; } } };
-  const result = await resetProviderModelOverrides(ctx, "alpha");
-  assert.equal(result.removed, 0);
-  assert.equal(reloaded, 0);
-});
 
 test("Provider Disabler applies saved disables even when old module flag is false", async () => {
   const providers = [{ provider: { id: "alpha", activation: "enabled" } }];
