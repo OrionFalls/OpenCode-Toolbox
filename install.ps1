@@ -1,11 +1,8 @@
 # OpenCode Toolbox bootstrap installer for Windows PowerShell 5.1+
-# Usage:
-#   irm https://raw.githubusercontent.com/OrionFalls/OpenCode-Toolbox/main/install.ps1 | iex
+# Run: irm https://raw.githubusercontent.com/OrionFalls/OpenCode-Toolbox/main/install.ps1 | iex
 
 [CmdletBinding()]
-param(
-    [switch]$ValidateOnly
-)
+param([switch]$ValidateOnly)
 
 $ErrorActionPreference = "Stop"
 $PluginSpec = "github:OrionFalls/OpenCode-Toolbox#main"
@@ -123,19 +120,19 @@ function Find-OpenCodeCli {
 }
 
 function Request-ManualCliPath {
-    Write-Warn "Автоматически найти CLI не удалось."
-    Write-Host "Выберите opencode.exe или opencode-cli.exe в окне проводника." -ForegroundColor Yellow
+    Write-Warn "OpenCode CLI was not found automatically."
+    Write-Host "Select opencode.exe or opencode-cli.exe in the file picker."
     try {
         Add-Type -AssemblyName System.Windows.Forms -ErrorAction Stop
         $dialog = New-Object System.Windows.Forms.OpenFileDialog
-        $dialog.Title = "Найдите исполняемый файл OpenCode CLI"
+        $dialog.Title = "Locate the OpenCode CLI executable"
         $dialog.Filter = "OpenCode CLI (opencode.exe;opencode-cli.exe)|opencode.exe;opencode-cli.exe|Executable files (*.exe)|*.exe"
         $dialog.CheckFileExists = $true
         $dialog.Multiselect = $false
         if ($dialog.ShowDialog() -eq [System.Windows.Forms.DialogResult]::OK) { return $dialog.FileName }
-    } catch { Write-Warn "Окно выбора файла недоступно в этой сессии." }
+    } catch { Write-Warn "The file picker is unavailable in this session." }
 
-    $manual = Read-Host "Вставьте полный путь к opencode.exe или opencode-cli.exe (Enter — отмена)"
+    $manual = Read-Host "Enter the full path to opencode.exe or opencode-cli.exe (Enter to cancel)"
     if ([string]::IsNullOrWhiteSpace($manual)) { return $null }
     return $manual.Trim().Trim('"')
 }
@@ -147,14 +144,14 @@ function Add-UserPath([string]$Directory) {
 
     $alreadyPresent = $false
     foreach ($entry in $entries) {
-        if ([string]::Equals($entry.TrimEnd("\"), $Directory.TrimEnd("\"), [StringComparison]::OrdinalIgnoreCase)) {
+        if ([string]::Equals($entry.TrimEnd([char]92), $Directory.TrimEnd([char]92), [StringComparison]::OrdinalIgnoreCase)) {
             $alreadyPresent = $true
             break
         }
     }
     if (-not $alreadyPresent) {
         [Environment]::SetEnvironmentVariable("Path", ((@($entries) + $Directory) -join ";"), "User")
-        Write-Ok "Добавлен пользовательский PATH: $Directory"
+        Write-Ok "Added to the user PATH: $Directory"
     }
     if (($env:Path -split ";") -notcontains $Directory) { $env:Path = $env:Path.TrimEnd(";") + ";" + $Directory }
 }
@@ -173,7 +170,7 @@ exit /b %ERRORLEVEL%
 }
 
 Write-Host ""
-Write-Host "  OPENCODE TOOLBOX — WINDOWS INSTALLER" -ForegroundColor White
+Write-Host "  OPENCODE TOOLBOX - WINDOWS INSTALLER" -ForegroundColor White
 Write-Host "  ------------------------------------" -ForegroundColor DarkGray
 Write-Host ""
 
@@ -181,34 +178,34 @@ $cliPath = Find-OpenCodeCli
 while (-not $cliPath) {
     $manualPath = Request-ManualCliPath
     if (-not $manualPath) {
-        Write-Fail "Установка отменена: путь к OpenCode CLI не указан. Ничего не изменено."
+        Write-Fail "Installation cancelled. No changes were made."
         return
     }
     if (Test-OpenCodeCli $manualPath) {
         $cliPath = (Resolve-Path -LiteralPath $manualPath).Path
     } else {
-        Write-Fail "Файл не найден или не является рабочим OpenCode CLI: $manualPath"
-        Write-Host "Попробуем ещё раз."
+        Write-Fail "The selected file is missing or is not a working OpenCode CLI: $manualPath"
+        Write-Host "Please try again."
     }
 }
 
-Write-Ok "Найден OpenCode CLI: $cliPath"
-if ($script:DetectedVersion) { Write-Info "Версия: $script:DetectedVersion" }
+Write-Ok "Found OpenCode CLI: $cliPath"
+if ($script:DetectedVersion) { Write-Info "Version: $script:DetectedVersion" }
 
 if ($ValidateOnly) {
-    Write-Ok "Проверка завершена. Установка и изменение PATH пропущены."
+    Write-Ok "Validation complete. Installation and PATH changes were skipped."
     return
 }
 
 try {
     Install-CommandShim $cliPath
-    Write-Ok "Команда opencode добавлена в пользовательский PATH."
+    Write-Ok "The opencode command is now available through the user PATH."
 } catch {
-    Write-Warn "Не удалось обновить PATH/shim: $($_.Exception.Message)"
-    Write-Warn "Продолжаю установку, вызывая CLI по полному пути."
+    Write-Warn "Could not update PATH/shim: $($_.Exception.Message)"
+    Write-Warn "Continuing by calling the CLI through its full path."
 }
 
-Write-Info "Устанавливаю OpenCode Toolbox из GitHub..."
+Write-Info "Installing OpenCode Toolbox from GitHub..."
 try {
     & $cliPath plugin add $PluginSpec
     $installExitCode = $LASTEXITCODE
@@ -218,13 +215,13 @@ try {
 }
 
 if ($installExitCode -ne 0) {
-    Write-Fail "OpenCode CLI завершил установку с кодом $installExitCode."
-    Write-Host "Проверьте подключение к GitHub и наличие Git, затем повторите установку." -ForegroundColor Yellow
-    Write-Host "Диагностика: $cliPath plugin list"
+    Write-Fail "OpenCode CLI returned installation exit code $installExitCode."
+    Write-Host "Check your GitHub connection and Git installation, then run the installer again."
+    Write-Host "Diagnostics: $cliPath plugin list"
     return
 }
 
 Write-Host ""
-Write-Ok "OpenCode Toolbox установлен."
-Write-Host "Перезапустите OpenCode Desktop и откройте Настройки → Расширения → Плагины."
-Write-Host "Если команда opencode не появилась в уже открытых терминалах, откройте новое окно PowerShell."
+Write-Ok "OpenCode Toolbox installed successfully."
+Write-Host "Restart OpenCode Desktop and open Settings > Extensions > Plugins."
+Write-Host "If opencode is not available in existing terminals, open a new PowerShell window."
