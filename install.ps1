@@ -2,6 +2,9 @@
 # Run from PowerShell:
 # irm https://raw.githubusercontent.com/OrionFalls/OpenCode-Toolbox/main/install.ps1 | iex
 
+[CmdletBinding()]
+param([switch]$ValidateOnly)
+
 $ErrorActionPreference = "Stop"
 $PluginSpec = "github:OrionFalls/OpenCode-Toolbox#main"
 $ShimDirectory = Join-Path $env:LOCALAPPDATA "OpenCode\bin"
@@ -314,6 +317,10 @@ while (-not $cliPath) {
 }
 Write-Ok (T "found")
 Write-Host ("  " + (T "version") + ": " + $script:DetectedVersion) -ForegroundColor Gray
+if ($ValidateOnly) {
+    Write-Ok (T "found")
+    return
+}
 
 Write-Step 2 (T "step2")
 try {
