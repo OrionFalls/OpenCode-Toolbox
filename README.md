@@ -70,8 +70,10 @@ The uninstaller locates OpenCode's active configuration directory (using `openco
 For a safe preview without deleting anything, download the script and run it with PowerShell's `-WhatIf` preference enabled:
 
 ```powershell
+$script = Join-Path $env:TEMP "opencode-toolbox-uninstall.ps1"
+Invoke-WebRequest -UseBasicParsing https://raw.githubusercontent.com/OrionFalls/OpenCode-Toolbox/main/uninstall.ps1 -OutFile $script
 $WhatIfPreference = $true
-. (Invoke-WebRequest -UseBasicParsing https://raw.githubusercontent.com/OrionFalls/OpenCode-Toolbox/main/uninstall.ps1).Content
+. $script
 ```
 
 Restart OpenCode Desktop after removal.
