@@ -34,3 +34,22 @@ export async function setProviderModelsEnabled(ctx, providerID, enabled, runtime
   await ctx.model.reload();
   return { changed: targets.length, providerID, enabled: Boolean(enabled) };
 }
+
+
+/**
+ * Remove only the saved model-enabled overrides for one provider.
+ * Native/catalog defaults become authoritative again after reload.
+ */
+export async function resetProviderModelOverrides(ctx, providerID, runtimeSettings) {
+  const current = await ctx.storage.get("settings") || {};
+  const overrides = { ...(current.modelEnabledOverrides || {}) };
+  const removed = overrides[providerID] && typeof overrides[providerID] === "object"
+    ? Object.keys(overrides[providerID]).length
+    : 0;
+  delete overrides[providerID];
+  const next = { ...current, modelEnabledOverrides: overrides };
+  if (runtimeSettings) runtimeSettings.modelEnabledOverrides = overrides;
+  await ctx.storage.set("settings", next);
+  if (removed > 0) await ctx.model.reload();
+  return { removed, providerID };
+}

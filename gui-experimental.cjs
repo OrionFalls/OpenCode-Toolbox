@@ -4695,6 +4695,13 @@ function setupToolboxPage(ctx) {
         for(const m of target)overrides[id][m.id]=enabled;
         void save({...settings(),modelEnabledOverrides:overrides});
       };
+      const resetBulk=()=>{
+        const id=selected();
+        const overrides={...(settings().modelEnabledOverrides||{})};
+        delete overrides[id];
+        void save({...settings(),modelEnabledOverrides:overrides});
+      };
+      const overrideCount=()=>Object.keys(settings().modelEnabledOverrides?.[selected()]||{}).length;
       void load();
       return createComponent(ui.SettingsLayout,{
         title:"OpenCode Toolbox",
@@ -4718,7 +4725,12 @@ function setupToolboxPage(ctx) {
             return [
               createComponent(ui.SettingsRow,{title:"Provider",description:"Choose which provider's models to change.",get children(){return createComponent(ui.Select,{label:"Provider",options,value:selected(),onChange:setSelected});}}),
               createComponent(ui.SettingsRow,{title:"Models found",description:String(models().filter(m=>m.providerID===selected()).length)}),
-              createComponent(ui.SettingsRow,{title:"Bulk action",description:"Overrides are saved by provider/model ID.",get children(){return h("div",{class:"cp-row-controls"},createComponent(ui.Button,{variant:"contrast",size:"small",onClick:()=>bulk(true),children:"Enable all"}),createComponent(ui.Button,{variant:"neutral",size:"small",onClick:()=>bulk(false),children:"Disable all"}));}})
+              createComponent(ui.SettingsRow,{title:"Saved overrides",description:String(overrideCount())+" model(s) overridden for this provider."}),
+              createComponent(ui.SettingsRow,{title:"Bulk actions",description:"Overrides are stored by provider/model ID. Reset removes Toolbox overrides and returns control to the provider's native model defaults.",get children(){return h("div",{class:"cp-row-controls"},
+                createComponent(ui.Button,{variant:"contrast",size:"small",onClick:()=>bulk(true),disabled:models().filter(m=>m.providerID===selected()).length===0,children:"Enable all"}),
+                createComponent(ui.Button,{variant:"neutral",size:"small",onClick:()=>bulk(false),disabled:models().filter(m=>m.providerID===selected()).length===0,children:"Disable all"}),
+                createComponent(ui.Button,{variant:"ghost",size:"small",onClick:resetBulk,disabled:overrideCount()===0,children:"Reset overrides"})
+              );}})
             ];
           }}),
           createComponent(ui.SettingsSection,{title:"About",get children(){return [

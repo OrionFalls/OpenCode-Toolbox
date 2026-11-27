@@ -2,7 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import path from "node:path";
 import { registerProviderDisabler, setProviderDisabled } from "../modules/provider-and-mcp.js";
-import { registerBulkModelToggle, setProviderModelsEnabled } from "../modules/bulk-model-toggle.js";
+import { registerBulkModelToggle, setProviderModelsEnabled, resetProviderModelOverrides } from "../modules/bulk-model-toggle.js";
 import { getAllowedModels, resolveDesktopDatabasePath, registerTrueModelDisabler } from "../modules/true-model-disabler.js";
 import { normalizeSettings, resolveConfigDir } from "../modules/settings.js";
 
@@ -224,4 +224,24 @@ test("True Model Disabler rejects hidden models through the SDK hook", async () 
   };
   await registerTrueModelDisabler(ctx, () => true, { readPolicy: async () => ({ ready: true, overrides: new Map([["p:hidden", "hide"]]) }) });
   await assert.rejects(() => hook({ model: { id: "hidden", providerID: "p" } }), /disabled in OpenCode Settings/);
+});
+
+
+test("Bulk Model Toggle reset removes only the selected provider overrides", async () => {
+  const store = storage({ modelEnabledOverrides: { alpha: { one: false, two: true }, beta: { three: false } } });
+  let reloaded = 0;
+  const ctx = { storage: store, model: { async reload() { reloaded++; } } };
+  const result = await resetProviderModelOverrides(ctx, "alpha");
+  assert.equal(result.removed, 2);
+  assert.deepEqual(store.read().modelEnabledOverrides, { beta: { three: false } });
+  assert.equal(reloaded, 1);
+});
+
+test("Bulk Model Toggle reset with no overrides does not reload the model catalog", async () => {
+  const store = storage({ modelEnabledOverrides: { beta: { three: false } } });
+  let reloaded = 0;
+  const ctx = { storage: store, model: { async reload() { reloaded++; } } };
+  const result = await resetProviderModelOverrides(ctx, "alpha");
+  assert.equal(result.removed, 0);
+  assert.equal(reloaded, 0);
 });
