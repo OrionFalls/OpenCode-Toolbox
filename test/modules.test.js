@@ -19,7 +19,7 @@ test("Provider Disabler changes activation without deleting provider records", a
   ];
   let transform;
   const ctx = { provider: { transform: async (fn) => { transform = fn; return { dispose() {} }; } } };
-  const settings = { disabledProviders: ["beta"] };
+  const settings = { modules: { providerDisabler: true }, disabledProviders: ["beta"] };
   await registerProviderDisabler(ctx, () => settings);
   const updates = [];
   await transform({
