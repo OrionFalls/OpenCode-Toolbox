@@ -4165,7 +4165,8 @@ function setupRenderer(ctx) {
   }
 
   let customProvidersEnabled = false;
-  void ctx.main(ToolboxIpc).getModuleSettings().then((settings) => {
+  void ctx.main(ToolboxIpc).getSettings().then((raw) => {
+    const settings = typeof raw === "string" ? JSON.parse(raw) : raw;
     customProvidersEnabled = settings.modules?.customProviders === true;
   }).catch((error) => {
     customProvidersEnabled = false;
@@ -4609,7 +4610,8 @@ function setupMcpGuiPage(ctx) {
   }
   const field=(label,value,setter,placeholder)=>h("div",{class:"cp-field"},h("div",{class:"cp-label"},label),createComponent(ui.TextInput,{label,value,placeholder,onInput:setter}));
   const register = async () => {
-    const settings = await api().getModuleSettings();
+    const rawSettings = await api().getSettings();
+    const settings = typeof rawSettings === "string" ? JSON.parse(rawSettings) : rawSettings;
     if (!settings.modules?.mcpGui) return;
     ctx.add(Command,{id:"mcp-gui",title:"Manage MCP Servers",description:"Add, edit, enable, disable and remove MCP servers",keywords:"mcp server tools local remote",group:"Settings",section:"navigation",slash:{name:"mcp-gui"},run:()=>ctx.layout.settings("mcp-gui")});
     ctx.add(SettingsPage,{
@@ -4734,7 +4736,7 @@ function setupToolboxPage(ctx) {
             ];
           }}),
           createComponent(ui.SettingsSection,{title:"About",get children(){return [
-            createComponent(ui.SettingsRow,{title:"Version",description:"0.2.30"}),
+            createComponent(ui.SettingsRow,{title:"Version",description:"0.2.31"}),
             createComponent(ui.SettingsRow,{title:"Settings file",description:"opencode-toolbox.json in the OpenCode config directory."}),
             createComponent(ui.SettingsRow,{title:"Custom Providers attribution",description:"Based on MoGLCL/opencode-custom-provider by MoGlitch. MIT License."}),
             createComponent(ui.SettingsRow,{title:"Status",description:status()||"Ready"})
