@@ -26,7 +26,8 @@ function createModuleRow(ui, module, enabled, setEnabled) {
   });
 }
 
-function ToolboxSettings(ctx) {
+function ToolboxSettings(props) {
+  const ctx = props.ctx;
   const ui = ctx.ui;
 
   // Demo state: switches update immediately, but are not persisted yet.
