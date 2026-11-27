@@ -1,0 +1,29 @@
+{
+  "name": "opencode-toolbox",
+  "version": "0.1.0",
+  "private": false,
+  "description": "A modular enhancement suite for OpenCode Desktop.",
+  "type": "commonjs",
+  "main": "./index.js",
+  "exports": {
+    ".": "./index.js",
+    "./gui-experimental": "./gui-experimental.cjs"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "keywords": [
+    "opencode",
+    "opencode-plugin",
+    "opencode-desktop",
+    "toolbox"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/OrionFalls/OpenCode-Toolbox.git"
+  },
+  "bugs": {
+    "url": "https://github.com/OrionFalls/OpenCode-Toolbox/issues"
+  },
+  "homepage": "https://github.com/OrionFalls/OpenCode-Toolbox#readme"
+}
