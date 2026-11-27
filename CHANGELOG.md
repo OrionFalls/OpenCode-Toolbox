@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.2.38
+
+- Исправлено устаревшее CI-ожидание MCP-GUI: проверка теперь подтверждает использование ToolboxIpc для чтения флага страницы, а не несуществующего метода McpIpc.
+- MCP-GUI регистрируется по тому же шаблону, что Custom Providers; его флаг всегда нормализуется в `true`.
+- Статус сохранения Provider Disabler и Bulk Model Toggle теперь сообщает об автоматическом применении настроек, без требования перезапуска Desktop.
+- Синхронизированы package metadata, GUI, серверный лог, README и CHANGELOG.
+
 ## 0.2.37
 
 - Toolbox UI: полностью удалён общий блок Modules; оставлен отдельный переключатель True Model Disabler. Provider Disabler, Bulk Model Toggle, MCP-GUI и Custom Providers всегда активны.

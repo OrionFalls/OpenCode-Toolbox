@@ -2333,7 +2333,7 @@ async function createMainHandler(ctx) {
         const temporaryPath = toolboxSettingsPath + "." + process.pid + ".tmp";
         await fsp.writeFile(temporaryPath, JSON.stringify(normalized, null, 2) + "\n", "utf8");
         await fsp.rename(temporaryPath, toolboxSettingsPath);
-        return { ok: true, message: "Saved. Restart OpenCode Desktop to apply server-side changes." };
+        return { ok: true, message: "Saved. Provider and model changes are being applied automatically." };
       } catch (error) { return { ok: false, message: error instanceof Error ? error.message : String(error) }; }
     },
     async reloadWindow() {
@@ -4640,7 +4640,7 @@ function setupMcpGuiPage(ctx) {
   const register = async () => {
     const rawSettings = await toolboxApi().getSettings();
     const settings = typeof rawSettings === "string" ? JSON.parse(rawSettings) : rawSettings;
-    // MCP-GUI is part of the always-on Toolbox suite.
+    if (!settings.modules?.mcpGui) return;
     ctx.add(Command,{id:"mcp-gui",title:"Manage MCP Servers",description:"Add, edit, enable, disable and remove MCP servers",keywords:"mcp server tools local remote",group:"Settings",section:"navigation",slash:{name:"mcp-gui"},run:()=>ctx.layout.settings("mcp-gui")});
     ctx.add(SettingsPage,{
       id:"mcp-gui",title:"MCP-GUI",icon:"server",
@@ -4753,7 +4753,7 @@ function setupToolboxPage(ctx) {
              ];
            }}),
 createComponent(ui.SettingsSection,{title:"About",get children(){return [
-            createComponent(ui.SettingsRow,{title:"Version",description:"0.2.37"}),
+            createComponent(ui.SettingsRow,{title:"Version",description:"0.2.38"}),
             createComponent(ui.SettingsRow,{title:"Settings file",description:"opencode-toolbox.json in the OpenCode config directory."}),
             createComponent(ui.SettingsRow,{title:"Custom Providers attribution",description:"Based on MoGLCL/opencode-custom-provider by MoGlitch. MIT License."}),
             createComponent(ui.SettingsRow,{title:"Status",description:status()||"Ready"})

@@ -44,16 +44,18 @@ test("GUI module pages call the declared ToolboxIpc method and parse its JSON pa
   const gui = read("../gui-experimental.cjs");
   assert.doesNotMatch(gui, /getModuleSettings\s*\(/);
   assert.match(gui, /const raw = await ctx\.main\(ToolboxIpc\)\.getSettings\(\)/);
-  assert.match(gui, /const rawSettings = await api\(\)\.getSettings\(\)/);
+  assert.match(gui, /const rawSettings = await toolboxApi\(\)\.getSettings\(\)/);
   assert.match(gui, /const ToolboxIpc = Ipc\.define\([\s\S]*?getSettings:\s*\{\s*output:\s*Schema\.String\s*\}/);
 });
 
-test("Toolbox hides disabled module panels and registers MCP-GUI when enabled", () => {
+test("Only True Model Disabler remains configurable; other module pages are always enabled", () => {
   const gui = read("../gui-experimental.cjs");
-  assert.match(gui, /settings\(\)\.modules\.providerDisabler\s*\?/);
-  assert.match(gui, /settings\(\)\.modules\.bulkModelToggle\s*\?/);
+  const toolbox = gui.slice(gui.indexOf("function setupToolboxPage"), gui.indexOf("exports.default"));
+  const mcp = gui.slice(gui.indexOf("function setupMcpGuiPage"), gui.indexOf("function setupToolboxPage"));
+  assert.doesNotMatch(toolbox, /settings\(\)\.modules\.(providerDisabler|bulkModelToggle)\s*\?/);
+  assert.match(toolbox, /title:"True Model Disabler"/);
   assert.match(gui, /setupMcpGuiPage\(ctx\)/);
-  assert.match(gui, /if\s*\(!settings\.modules\?\.mcpGui\)\s*return/);
+  assert.match(mcp, /if\s*\(!settings\.modules\?\.mcpGui\)\s*return/);
   assert.match(gui, /if\s*\(!customProvidersEnabled\)\s*return/);
 });
 
