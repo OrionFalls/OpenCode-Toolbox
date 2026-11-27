@@ -22,7 +22,7 @@ Open PowerShell and run this single command:
 irm https://raw.githubusercontent.com/OrionFalls/OpenCode-Toolbox/main/install.ps1 | iex
 ```
 
-The installer automatically selects Russian or English using the Windows display language. The same command handles both first-time installation and future updates: it checks the installed Git commit against the latest commit on GitHub, reports when no update is available, and refreshes only Toolbox when a newer commit exists. It preserves the previous plugin configuration and cached package if an update fails.
+The installer automatically selects Russian or English using the Windows display language. The same command handles both first-time installation and future updates: it compares the local Toolbox commit marker with the latest commit on GitHub, reports when no update is available, and refreshes only Toolbox when a newer commit exists. Toolbox is installed as a local OpenCode plugin, downloading its files directly from GitHub over HTTPS. This avoids Git/SSH requirements entirely.
 
 The installer:
 
@@ -53,17 +53,9 @@ The GUI uses OpenCode's native plugin localization API (`ctx.t` and `Plugin.defi
 
 No separate language setting is required.
 
-### Manual install
-
-If you already have the CLI in PATH:
-
-```powershell
-opencode plugin add git+https://github.com/OrionFalls/OpenCode-Toolbox.git#main
-```
-
 ### Update
 
-Run the exact same PowerShell command shown in **Install on Windows**. It detects the existing installation, checks GitHub, and updates Toolbox only when a newer commit is available. You do not need a separate update command.
+Run the exact same PowerShell command shown in **Install on Windows**. It detects the existing local plugin, checks GitHub, and updates Toolbox only when a newer commit is available. You do not need a separate update command.
 
 ### Remove
 
