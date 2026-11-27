@@ -4535,13 +4535,13 @@ function setupMcpGuiPage(ctx) {
     finally { setBusy(false); }
   }
   async function toggle(s, value) {
-    try { const r=await api().setDisabled({id:s.id,disabled:!value}); if(!r.ok) await ctx.dialogs.alert({title:"MCP update failed",description:r.message}); else {ctx.toast.success(r.message);await refresh();} }
+    try { const r=await api().setDisabled({id:s.id,disabled:!value}); if(!r.ok) await ctx.dialogs.alert({title:"MCP update failed",description:r.message}); else {ctx.toast.show({ variant: "success", title: r.message });await refresh();} }
     catch(e) { await ctx.dialogs.alert({title:"MCP update failed",description:String(e)}); }
   }
   async function remove(s) {
     const yes=await ctx.dialogs.confirm({title:`Delete MCP server "${s.id}"?`,description:"This removes the server definition from the OpenCode configuration file.",confirm:"Delete",cancel:"Cancel",danger:true});
     if(!yes)return;
-    try { const r=await api().remove({id:s.id}); if(!r.ok) await ctx.dialogs.alert({title:"MCP delete failed",description:r.message}); else {ctx.toast.success(r.message);if(originalId()===s.id)clearForm();await refresh();} }
+    try { const r=await api().remove({id:s.id}); if(!r.ok) await ctx.dialogs.alert({title:"MCP delete failed",description:r.message}); else {ctx.toast.show({ variant: "success", title: r.message });if(originalId()===s.id)clearForm();await refresh();} }
     catch(e) { await ctx.dialogs.alert({title:"MCP delete failed",description:String(e)}); }
   }
   const field=(label,value,setter,placeholder)=>h("div",{class:"cp-field"},h("div",{class:"cp-label"},label),createComponent(ui.TextInput,{label,value,placeholder,onInput:setter}));
@@ -4626,7 +4626,7 @@ function setupToolboxPage(ctx) {
                 }),
                 createComponent(ui.SettingsRow, {
                   title: "MCP-GUI",
-                  description: "Dedicated MCP management page is being integrated.",
+                  description: "Manage local and remote MCP servers, including enable/disable and deletion.",
                 }),
                 createComponent(ui.SettingsRow, {
                   title: "Custom Providers",
@@ -4641,7 +4641,7 @@ function setupToolboxPage(ctx) {
               return [
                 createComponent(ui.SettingsRow, {
                   title: "Version",
-                  description: "0.2.7",
+                  description: "0.2.12",
                 }),
                 createComponent(ui.SettingsRow, {
                   title: "Custom Providers attribution",

@@ -1,6 +1,6 @@
 import { Plugin } from "@opencode/plugin";
 import { registerTrueModelDisabler } from "./modules/true-model-disabler.js";
-import { registerProviderDisabler, registerMcpPolicy } from "./modules/provider-and-mcp.js";
+import { registerProviderDisabler } from "./modules/provider-and-mcp.js";
 import { registerBulkModelToggle } from "./modules/bulk-model-toggle.js";
 
 const DEFAULTS = {
@@ -44,11 +44,8 @@ export default Plugin.define({
     if (settings.modules.bulkModelToggle) {
       disposers.push(await registerBulkModelToggle(ctx, getSettings));
     }
-    if (settings.modules.mcpGui) {
-      disposers.push(await registerMcpPolicy(ctx, getSettings));
-    }
-
-    console.info("[opencode-toolbox] v0.2.10 loaded");
+    // MCP-GUI owns mcp.servers[*].disabled; a second transform would overwrite GUI changes.
+    console.info("[opencode-toolbox] v0.2.12 loaded");
     return async () => {
       for (const registration of disposers.reverse()) {
         await registration.dispose?.();
