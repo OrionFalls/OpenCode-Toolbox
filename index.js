@@ -3,7 +3,6 @@ import { existsSync, readFileSync } from "node:fs";
 import path from "node:path";
 import { registerTrueModelDisabler } from "./modules/true-model-disabler.js";
 import { registerProviderDisabler } from "./modules/provider-and-mcp.js";
-import { registerBulkModelToggle } from "./modules/bulk-model-toggle.js";
 import { normalizeSettings, resolveConfigDir } from "./modules/settings.js";
 import { watchSettingsFile } from "./modules/settings-watcher.js";
 
@@ -27,9 +26,8 @@ export default Plugin.define({
     const disposers = [];
     disposers.push(await registerTrueModelDisabler(ctx, () => getSettings().modules.trueModelDisabler));
     disposers.push(await registerProviderDisabler(ctx, getSettings));
-    disposers.push(await registerBulkModelToggle(ctx, getSettings));
     const stopWatchingSettings = watchSettingsFile(ctx, settingsPath);
-    console.info("[opencode-toolbox] v0.2.41 loaded");
+    console.info("[opencode-toolbox] v0.2.42 loaded");
     return async () => {
       stopWatchingSettings();
       for (const registration of disposers.reverse()) await registration.dispose?.();
