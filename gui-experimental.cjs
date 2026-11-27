@@ -103,7 +103,7 @@ module.exports.default = Plugin.define({
     ctx.add(SettingsPage, {
       id: "toolbox",
       title: "OpenCode Toolbox",
-      icon: "wrench",
+      icon: "outline-sliders",
       entries: [
         {
           id: "toolbox-modules",
