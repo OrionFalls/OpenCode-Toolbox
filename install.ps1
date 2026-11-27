@@ -1,4 +1,4 @@
-# OpenCode Toolbox — friendly Windows installer (PowerShell 5.1+)
+﻿# OpenCode Toolbox — friendly Windows installer (PowerShell 5.1+)
 # Run from PowerShell:
 # irm https://raw.githubusercontent.com/OrionFalls/OpenCode-Toolbox/main/install.ps1 | iex
 
