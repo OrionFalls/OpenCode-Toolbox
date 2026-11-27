@@ -146,3 +146,21 @@ test("Config directory resolver honours OPENCODE_CONFIG_DIR and falls back predi
   assert.equal(resolveConfigDir({ OPENCODE_CONFIG_DIR: "./custom" }, "/home/test"), path.resolve("./custom"));
   assert.equal(resolveConfigDir({}, "/home/test"), path.join("/home/test", ".config", "opencode"));
 });
+
+
+test("MCP-GUI settings can disable and re-enable a single server without losing others", async () => {
+  const { setMcpServerDisabled } = await import("../modules/settings.js");
+  const initial = { modules: {}, disabledMcpServers: ["ssh", "figma"], disabledProviders: ["alpha"] };
+  const withoutSsh = setMcpServerDisabled(initial, "ssh", false);
+  assert.deepEqual(withoutSsh.disabledMcpServers, ["figma"]);
+  assert.deepEqual(withoutSsh.disabledProviders, ["alpha"]);
+  const withBrowser = setMcpServerDisabled(withoutSsh, "browser", true);
+  assert.deepEqual(withBrowser.disabledMcpServers, ["figma", "browser"]);
+});
+
+test("MCP and Custom Providers modules default to disabled", () => {
+  const value = normalizeSettings({});
+  assert.equal(value.modules.mcpGui, false);
+  assert.equal(value.modules.customProviders, false);
+  assert.deepEqual(value.disabledMcpServers, []);
+});

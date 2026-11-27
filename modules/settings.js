@@ -37,3 +37,9 @@ export function normalizeSettings(input = {}) {
     modelEnabledOverrides: modelOverrides,
   };
 }
+export function setMcpServerDisabled(settings, serverID, disabled) {
+  const ids = new Set(settings.disabledMcpServers || []);
+  if (disabled) ids.add(serverID);
+  else ids.delete(serverID);
+  return { ...settings, disabledMcpServers: [...ids] };
+}

@@ -2285,7 +2285,7 @@ async function createMainHandler(ctx) {
     async getSettings() {
       try { return await fsp.readFile(toolboxSettingsPath, "utf8"); }
       catch (error) {
-        if (error?.code === "ENOENT") return JSON.stringify({ modules: { trueModelDisabler: true, providerDisabler: false, bulkModelToggle: false, mcpGui: true, customProviders: true }, disabledProviders: [], modelEnabledOverrides: {} });
+        if (error?.code === "ENOENT") return JSON.stringify({ modules: { trueModelDisabler: true, providerDisabler: false, bulkModelToggle: false, mcpGui: false, customProviders: false }, disabledProviders: [], disabledMcpServers: [], modelEnabledOverrides: {} });
         throw error;
       }
     },
@@ -4628,7 +4628,7 @@ function setupToolboxPage(ctx) {
     id:"toolbox",title:"OpenCode Toolbox",icon:"outline-sliders",
     entries:[{id:"toolbox-modules",title:"Modules",description:"Configure Toolbox modules, providers and models",keywords:"toolbox modules providers models"}],
     render:()=>{
-      const [settings,setSettings]=createSignal({modules:{trueModelDisabler:true,providerDisabler:false,bulkModelToggle:false,mcpGui:true,customProviders:true},disabledProviders:[],modelEnabledOverrides:{}});
+      const [settings,setSettings]=createSignal({modules:{trueModelDisabler:true,providerDisabler:false,bulkModelToggle:false,mcpGui:false,customProviders:false},disabledProviders:[],disabledMcpServers:[],modelEnabledOverrides:{}});
       const [providers,setProviders]=createSignal([]),[models,setModels]=createSignal([]),[selected,setSelected]=createSignal("");
       const [status,setStatus]=createSignal("Loading settings…"),[busy,setBusy]=createSignal(false);
       const load=async()=>{
@@ -4691,7 +4691,7 @@ function setupToolboxPage(ctx) {
             ];
           }}),
           createComponent(ui.SettingsSection,{title:"About",get children(){return [
-            createComponent(ui.SettingsRow,{title:"Version",description:"0.2.23"}),
+            createComponent(ui.SettingsRow,{title:"Version",description:"0.2.24"}),
             createComponent(ui.SettingsRow,{title:"Settings file",description:"opencode-toolbox.json in the OpenCode config directory."}),
             createComponent(ui.SettingsRow,{title:"Custom Providers attribution",description:"Based on MoGLCL/opencode-custom-provider by MoGlitch. MIT License."}),
             createComponent(ui.SettingsRow,{title:"Status",description:status()||"Ready"})
