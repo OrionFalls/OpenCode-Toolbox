@@ -236,7 +236,7 @@ const McpStateSchema = Schema.Struct({
 });
 const McpResultSchema = Schema.Struct({ ok: Schema.Boolean, message: Schema.String });
 const McpIpc = Ipc.define({
-  id: "mcp-gui", state: McpStateSchema,
+  id: "opencode-toolbox.mcp-gui", state: McpStateSchema,
   methods: {
     refresh: { output: McpStateSchema },
     save: { input: Schema.Struct({
@@ -249,10 +249,10 @@ const McpIpc = Ipc.define({
   },
 });
 
-const ToolboxIpc = Ipc.define({ id: "toolbox.settings", methods: { getSettings: { output: Schema.String }, saveSettings: { input: Schema.String, output: Schema.Struct({ ok: Schema.Boolean, message: Schema.String }) } } });
+const ToolboxIpc = Ipc.define({ id: "opencode-toolbox.settings", methods: { getSettings: { output: Schema.String }, saveSettings: { input: Schema.String, output: Schema.Struct({ ok: Schema.Boolean, message: Schema.String }) } } });
 
 const CustomProviderIpc = Ipc.define({
-  id: "custom-provider",
+  id: "opencode-toolbox.custom-provider",
   state: StateSchema,
   methods: {
     refresh: { output: StateSchema },
