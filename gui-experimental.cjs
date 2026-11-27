@@ -2294,12 +2294,22 @@ async function createMainHandler(ctx) {
         const value = JSON.parse(raw);
         if (!value || typeof value !== "object" || Array.isArray(value)) throw new Error("Settings must be a JSON object.");
         const normalized = {
-          modules: { trueModelDisabler: value.modules?.trueModelDisabler !== false, providerDisabler: Boolean(value.modules?.providerDisabler), bulkModelToggle: Boolean(value.modules?.bulkModelToggle), mcpGui: value.modules?.mcpGui !== false, customProviders: value.modules?.customProviders !== false },
-          disabledProviders: Array.isArray(value.disabledProviders) ? [...new Set(value.disabledProviders.filter(x => typeof x === "string"))] : [],
-          modelEnabledOverrides: value.modelEnabledOverrides && typeof value.modelEnabledOverrides === "object" ? value.modelEnabledOverrides : {},
+          ...value,
+          modules: {
+            trueModelDisabler: value.modules?.trueModelDisabler !== false,
+            providerDisabler: Boolean(value.modules?.providerDisabler),
+            bulkModelToggle: Boolean(value.modules?.bulkModelToggle),
+            mcpGui: Boolean(value.modules?.mcpGui),
+            customProviders: Boolean(value.modules?.customProviders),
+          },
+          disabledProviders: Array.isArray(value.disabledProviders) ? [...new Set(value.disabledProviders.filter(x => typeof x === "string" && x.trim()))] : [],
+          disabledMcpServers: Array.isArray(value.disabledMcpServers) ? [...new Set(value.disabledMcpServers.filter(x => typeof x === "string" && x.trim()))] : [],
+          modelEnabledOverrides: value.modelEnabledOverrides && typeof value.modelEnabledOverrides === "object" && !Array.isArray(value.modelEnabledOverrides) ? value.modelEnabledOverrides : {},
         };
         await fsp.mkdir(configDir, { recursive: true });
-        await fsp.writeFile(toolboxSettingsPath, JSON.stringify(normalized, null, 2) + "\n", "utf8");
+        const temporaryPath = toolboxSettingsPath + "." + process.pid + ".tmp";
+        await fsp.writeFile(temporaryPath, JSON.stringify(normalized, null, 2) + "\n", "utf8");
+        await fsp.rename(temporaryPath, toolboxSettingsPath);
         return { ok: true, message: "Saved. Restart OpenCode Desktop to apply server-side changes." };
       } catch (error) { return { ok: false, message: error instanceof Error ? error.message : String(error) }; }
     },
@@ -4681,7 +4691,7 @@ function setupToolboxPage(ctx) {
             ];
           }}),
           createComponent(ui.SettingsSection,{title:"About",get children(){return [
-            createComponent(ui.SettingsRow,{title:"Version",description:"0.2.22"}),
+            createComponent(ui.SettingsRow,{title:"Version",description:"0.2.23"}),
             createComponent(ui.SettingsRow,{title:"Settings file",description:"opencode-toolbox.json in the OpenCode config directory."}),
             createComponent(ui.SettingsRow,{title:"Custom Providers attribution",description:"Based on MoGLCL/opencode-custom-provider by MoGlitch. MIT License."}),
             createComponent(ui.SettingsRow,{title:"Status",description:status()||"Ready"})

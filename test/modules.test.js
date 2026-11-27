@@ -4,6 +4,7 @@ import path from "node:path";
 import { registerProviderDisabler, setProviderDisabled } from "../modules/provider-and-mcp.js";
 import { registerBulkModelToggle, setProviderModelsEnabled } from "../modules/bulk-model-toggle.js";
 import { getAllowedModels, resolveDesktopDatabasePath } from "../modules/true-model-disabler.js";
+import { normalizeSettings, resolveConfigDir } from "../index.js";
 
 function storage(initial = {}) {
   let value = structuredClone(initial);
@@ -109,4 +110,39 @@ test("True Model Disabler preserves free and recently released models", () => {
   assert.equal(allowed.has("opencode:free"), true);
   assert.equal(allowed.has("p:recent"), true);
   assert.equal(allowed.has("p:stale"), false);
+});
+
+
+test("Shared settings normalization preserves MCP state and unrelated fields", () => {
+  const value = normalizeSettings({
+    modules: { providerDisabler: true },
+    disabledProviders: ["alpha", "alpha", "", 4],
+    disabledMcpServers: ["ssh", "ssh", null],
+    modelEnabledOverrides: { alpha: { m1: false } },
+    futureOption: "keep",
+  });
+  assert.equal(value.modules.providerDisabler, true);
+  assert.equal(value.modules.trueModelDisabler, true);
+  assert.deepEqual(value.disabledProviders, ["alpha"]);
+  assert.deepEqual(value.disabledMcpServers, ["ssh"]);
+  assert.deepEqual(value.modelEnabledOverrides, { alpha: { m1: false } });
+  assert.equal(value.futureOption, "keep");
+});
+
+test("Shared settings normalization rejects malformed nested collections", () => {
+  const value = normalizeSettings({
+    modules: [],
+    disabledProviders: "alpha",
+    disabledMcpServers: {},
+    modelEnabledOverrides: [],
+  });
+  assert.equal(value.modules.providerDisabler, false);
+  assert.deepEqual(value.disabledProviders, []);
+  assert.deepEqual(value.disabledMcpServers, []);
+  assert.deepEqual(value.modelEnabledOverrides, {});
+});
+
+test("Config directory resolver honours OPENCODE_CONFIG_DIR and falls back predictably", () => {
+  assert.equal(resolveConfigDir({ OPENCODE_CONFIG_DIR: "./custom" }, "/home/test"), path.resolve("./custom"));
+  assert.equal(resolveConfigDir({}, "/home/test"), path.join("/home/test", ".config", "opencode"));
 });

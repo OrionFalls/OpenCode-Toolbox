@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.2.23
+
+- Общие настройки приведены к единой схеме: сохраняются и нормализуются modules, disabledProviders, disabledMcpServers и modelEnabledOverrides.
+- GUI больше не теряет список отключённых MCP-серверов при сохранении других переключателей.
+- Сохранение opencode-toolbox.json переведено на временный файл и atomic rename.
+- Резолвер каталога конфигурации и нормализация настроек вынесены в экспортируемые функции; добавлены unit-тесты.
+- Синхронизированы версия, README и CHANGELOG.
+
+# Changelog
+
 ## 0.2.22
 
 - True Model Disabler: отложена загрузка `bun:sqlite` до чтения внутренней базы OpenCode — Node.js может импортировать пакет без Bun.
