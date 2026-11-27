@@ -335,14 +335,16 @@ function Get-RemoteToolboxCommit {
 
 function Download-ToolboxFile([string]$Uri, [string]$Destination) {
     $downloadError = $null
+    $primarySucceeded = $false
     $curl = Get-Command "curl.exe" -CommandType Application -ErrorAction SilentlyContinue | Select-Object -First 1
 
-    # Primary path: raw.githubusercontent.com. Force HTTP/1.1 because some
-    # Windows Schannel/proxy combinations fail while decrypting HTTP/2 streams.
+    # Primary path: raw.githubusercontent.com. HTTP/1.1 avoids a known class
+    # of Schannel/proxy failures while decrypting some HTTP/2 responses.
     if ($curl) {
         try {
             & $curl.Source --http1.1 -L --fail --silent --show-error --retry 2 --connect-timeout 15 --output $Destination $Uri
             if ($LASTEXITCODE -ne 0) { throw "curl.exe exited with code $LASTEXITCODE" }
+            $primarySucceeded = $true
         } catch {
             $downloadError = $_.Exception.Message
         }
@@ -350,16 +352,52 @@ function Download-ToolboxFile([string]$Uri, [string]$Destination) {
         try {
             [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
             Invoke-WebRequest -UseBasicParsing -Uri $Uri -OutFile $Destination -TimeoutSec 30
+            $primarySucceeded = $true
         } catch {
             $downloadError = $_.Exception.Message
         }
     }
 
-    $downloaded = (Test-Path -LiteralPath $Destination -PathType Leaf) -and (Get-Item -LiteralPath $Destination).Length -gt 0
-    if (-not $downloaded) {
-        # Fallback: use the GitHub Contents API (api.github.com), which is
-        # already used by the installer to resolve the current commit.
-        if ($Uri -match '^https://raw\.githubusercontent\.com/([^/]+)/([^/]+)/([^/]+)/(.+)
+    if (-not $primarySucceeded) {
+        if (Test-Path -LiteralPath $Destination -PathType Leaf) {
+            Remove-Item -LiteralPath $Destination -Force -ErrorAction SilentlyContinue
+        }
+
+        # Fallback to api.github.com, the same host used to resolve the commit.
+        if ($Uri -match "^https://raw[.]githubusercontent[.]com/([^/]+)/([^/]+)/([^/]+)/(.+)") {
+            $owner = $Matches[1]
+            $repository = $Matches[2]
+            $gitRef = $Matches[3]
+            $relativePath = $Matches[4]
+            try {
+                [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
+                $apiUri = "https://api.github.com/repos/" + $owner + "/" + $repository + "/contents/" + $relativePath + "?ref=" + [Uri]::EscapeDataString($gitRef)
+                $response = Invoke-RestMethod -Uri $apiUri -Headers @{
+                    "User-Agent" = "OpenCode-Toolbox-Installer"
+                    "Accept" = "application/vnd.github+json"
+                } -TimeoutSec 30
+                if ($response.encoding -ne "base64" -or [string]::IsNullOrWhiteSpace($response.content)) {
+                    throw "GitHub Contents API returned no base64 file content."
+                }
+                $bytes = [Convert]::FromBase64String(($response.content -replace "\s", ""))
+                if ($bytes.Length -eq 0) { throw "GitHub Contents API returned an empty file." }
+                [IO.File]::WriteAllBytes($Destination, $bytes)
+            } catch {
+                $apiError = $_.Exception.Message
+                if (Test-Path -LiteralPath $Destination -PathType Leaf) {
+                    Remove-Item -LiteralPath $Destination -Force -ErrorAction SilentlyContinue
+                }
+                throw "Download failed from raw.githubusercontent.com (" + $downloadError + "); GitHub API fallback also failed (" + $apiError + ")."
+            }
+        } else {
+            throw "Download failed: " + $Uri + ". " + $downloadError
+        }
+    }
+
+    if (-not (Test-Path -LiteralPath $Destination -PathType Leaf) -or (Get-Item -LiteralPath $Destination).Length -eq 0) {
+        throw "Downloaded file is missing or empty: " + $Destination
+    }
+}
 
 function Invoke-ToolboxInstallOrUpdate([string]$CliPath, [string]$ConfiguredSpec, [string]$ConfigPath, [string]$Commit) {
     $pluginParent = Join-Path $env:USERPROFILE ".config\opencode\plugins"
