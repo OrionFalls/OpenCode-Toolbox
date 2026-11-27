@@ -81,7 +81,7 @@ function Write-Fail([string]$Message) { Write-Host ("  [X]   " + $Message) -Fore
 
 function Show-Logo {
     $logo = @(
-        '.                                          __   '
+        '.                                        __   '
         '  ____  ____  ___  ____  _________  ____/ /__ '
         ' / __ \/ __ \/ _ \/ __ \/ ___/ __ \/ __  / _ \'
         '/ /_/ / /_/ /  __/ / / / /__/ /_/ / /_/ /  __/'
