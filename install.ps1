@@ -261,7 +261,6 @@ function Add-UserPath([string]$Directory) {
     if (-not $alreadyPresent) {
         [Environment]::SetEnvironmentVariable("Path", ((@($entries) + $Directory) -join ";"), "User")
     }
-    if (($env:Path -split ";") -notcontains $Directory) { $env:Path = $env:Path.TrimEnd(";") + ";" + $Directory }
     return (-not $alreadyPresent)
 }
 
@@ -336,6 +335,10 @@ function Invoke-ToolboxInstallOrUpdate([string]$CliPath, [string]$ConfiguredSpec
     $cacheBackup = Join-Path $env:TEMP ("opencode-toolbox-cache-" + [guid]::NewGuid().ToString("N"))
     $configBackup = $ConfigPath + ".toolbox-backup-" + [guid]::NewGuid().ToString("N")
     $hadConfig = Test-Path -LiteralPath $ConfigPath -PathType Leaf
+    $originalPath = $env:Path
+    $env:Path = (($env:Path -split ";") | Where-Object {
+        $_ -and -not [string]::Equals($_.TrimEnd([char]92), $ShimDirectory.TrimEnd([char]92), [StringComparison]::OrdinalIgnoreCase)
+    }) -join ";"
 
     if ($hadConfig) { Copy-Item -LiteralPath $ConfigPath -Destination $configBackup -Force }
     New-Item -ItemType Directory -Path $cacheBackup -Force | Out-Null
@@ -374,6 +377,8 @@ function Invoke-ToolboxInstallOrUpdate([string]$CliPath, [string]$ConfiguredSpec
             Remove-Item -LiteralPath $cacheBackup -Recurse -Force -ErrorAction SilentlyContinue
         }
         throw
+    } finally {
+        $env:Path = $originalPath
     }
 }
 
