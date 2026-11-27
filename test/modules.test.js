@@ -136,7 +136,10 @@ test("Shared settings normalization rejects malformed nested collections", () =>
     disabledMcpServers: {},
     modelEnabledOverrides: [],
   });
-  assert.equal(value.modules.providerDisabler, false);
+  assert.equal(value.modules.providerDisabler, true);
+  assert.equal(value.modules.bulkModelToggle, true);
+  assert.equal(value.modules.mcpGui, true);
+  assert.equal(value.modules.customProviders, true);
   assert.deepEqual(value.disabledProviders, []);
   assert.deepEqual(value.disabledMcpServers, []);
   assert.deepEqual(value.modelEnabledOverrides, {});
