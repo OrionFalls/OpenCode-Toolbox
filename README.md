@@ -58,13 +58,13 @@ No separate language setting is required.
 If you already have the CLI in PATH:
 
 ```powershell
-opencode plugin add github:OrionFalls/OpenCode-Toolbox#main
+opencode plugin add git+https://github.com/OrionFalls/OpenCode-Toolbox.git#main
 ```
 
 ### Update
 
 ```powershell
-opencode plugin update opencode-toolbox
+opencode plugin update "git+https://github.com/OrionFalls/OpenCode-Toolbox.git#main"
 ```
 
 ### Remove
