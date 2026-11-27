@@ -1,0 +1,206 @@
+# OpenCode Toolbox - Windows uninstaller (PowerShell 5.1+)
+# Run from PowerShell:
+# irm https://raw.githubusercontent.com/OrionFalls/OpenCode-Toolbox/main/uninstall.ps1 | iex
+
+[CmdletBinding(SupportsShouldProcess = $true, ConfirmImpact = "Medium")]
+param()
+
+$ErrorActionPreference = "Stop"
+
+try {
+    [Console]::OutputEncoding = New-Object System.Text.UTF8Encoding($false)
+    [Console]::InputEncoding = New-Object System.Text.UTF8Encoding($false)
+    $OutputEncoding = [Console]::OutputEncoding
+    & $env:ComSpec /d /c chcp 65001 | Out-Null
+} catch {}
+
+$languageCandidates = @($PSUICulture, [Globalization.CultureInfo]::CurrentUICulture.Name, $env:LANG)
+$language = "en"
+foreach ($candidate in $languageCandidates) {
+    if ($candidate -match '^(?i:ru)([-_]|$)') { $language = "ru"; break }
+}
+
+$messages = @{
+    en = @{
+        title = "OpenCode Toolbox uninstaller"
+        searching = "Searching OpenCode configuration and plugin folders..."
+        found = "Found Toolbox installation(s):"
+        none = "OpenCode Toolbox was not found. Nothing was changed."
+        removed = "Removed"
+        skipped = "Skipped"
+        complete = "OpenCode Toolbox removal is complete."
+        restart = "Close and reopen OpenCode Desktop to refresh the plugin list."
+        dryRun = "Preview only: no files were deleted."
+        failed = "Could not remove"
+        legacy = "Legacy package cache"
+        local = "Local plugin"
+    }
+    ru = @{
+        title = "Удаление OpenCode Toolbox"
+        searching = "Ищем Toolbox в каталогах конфигурации и плагинов OpenCode..."
+        found = "Найдены установки Toolbox:"
+        none = "OpenCode Toolbox не найден. Изменений нет."
+        removed = "Удалено"
+        skipped = "Пропущено"
+        complete = "Удаление OpenCode Toolbox завершено."
+        restart = "Закройте и заново откройте OpenCode Desktop, чтобы обновить список плагинов."
+        dryRun = "Предварительный просмотр: файлы не удалялись."
+        failed = "Не удалось удалить"
+        legacy = "Старый кэш пакета"
+        local = "Локальный плагин"
+    }
+}
+
+function T([string]$Key) { return $messages[$language][$Key] }
+
+function Get-OpenCodeConfigRoots {
+    $roots = New-Object System.Collections.Generic.List[string]
+    if ($env:XDG_CONFIG_HOME) { $roots.Add((Join-Path $env:XDG_CONFIG_HOME "opencode")) }
+    if ($env:USERPROFILE) { $roots.Add((Join-Path $env:USERPROFILE ".config\opencode")) }
+    if ($env:APPDATA) { $roots.Add((Join-Path $env:APPDATA "opencode")) }
+
+    # Prefer the active config path reported by OpenCode itself.
+    try {
+        $command = Get-Command "opencode" -ErrorAction SilentlyContinue | Select-Object -First 1
+        if ($command) {
+            $output = & $command.Source debug paths 2>$null
+            foreach ($line in $output) {
+                if ([string]$line -match '^\s*config\s+(.+?)\s*$') { $roots.Add($Matches[1].Trim()) }
+            }
+        }
+    } catch {}
+
+    $seen = @{}
+    foreach ($root in $roots) {
+        if ([string]::IsNullOrWhiteSpace($root)) { continue }
+        $full = [Environment]::ExpandEnvironmentVariables($root)
+        try { $full = [IO.Path]::GetFullPath($full) } catch {}
+        $key = $full.TrimEnd([char]92)
+        if (-not $seen.ContainsKey($key)) {
+            $seen[$key] = $true
+            if (Test-Path -LiteralPath $full -PathType Container) { $full }
+        }
+    }
+}
+
+function Test-ToolboxPluginDirectory([string]$Directory) {
+    $packagePath = Join-Path $Directory "package.json"
+    if (Test-Path -LiteralPath $packagePath -PathType Leaf) {
+        try {
+            $package = Get-Content -LiteralPath $packagePath -Raw | ConvertFrom-Json
+            if ($package.name -eq "opencode-toolbox") { return $true }
+        } catch {}
+    }
+
+    $marker = Join-Path $Directory ".toolbox-commit"
+    $entry = Join-Path $Directory "index.js"
+    if ((Test-Path -LiteralPath $marker -PathType Leaf) -and (Test-Path -LiteralPath $entry -PathType Leaf)) {
+        $source = Get-Content -LiteralPath $entry -Raw
+        if ($source -match 'id\s*:\s*["'']opencode-toolbox["'']') { return $true }
+    }
+    return $false
+}
+
+function Find-ToolboxInstallations {
+    $results = New-Object System.Collections.Generic.List[object]
+    $seen = @{}
+
+    foreach ($configRoot in (Get-OpenCodeConfigRoots)) {
+        $pluginsRoot = Join-Path $configRoot "plugins"
+        if (-not (Test-Path -LiteralPath $pluginsRoot -PathType Container)) { continue }
+
+        $directories = @()
+        $directories += Get-ChildItem -LiteralPath $pluginsRoot -Directory -ErrorAction SilentlyContinue
+        $directories += Get-ChildItem -LiteralPath $pluginsRoot -Directory -Recurse -ErrorAction SilentlyContinue
+
+        foreach ($directory in $directories) {
+            if (Test-ToolboxPluginDirectory $directory.FullName) {
+                $key = $directory.FullName.TrimEnd([char]92)
+                if (-not $seen.ContainsKey($key)) {
+                    $seen[$key] = $true
+                    $results.Add([pscustomobject]@{ Path = $directory.FullName; Kind = (T "local") })
+                }
+            }
+        }
+    }
+
+    # Remove a legacy npm/Git cache only after verifying the package name.
+    if ($env:USERPROFILE) {
+        $npmRoot = Join-Path $env:USERPROFILE ".cache\opencode\npm"
+        if (Test-Path -LiteralPath $npmRoot -PathType Container) {
+            $legacyDirectories = Get-ChildItem -LiteralPath $npmRoot -Directory -ErrorAction SilentlyContinue |
+                Where-Object { $_.Name -like "git-OpenCode-Toolbox-*" }
+
+            foreach ($directory in $legacyDirectories) {
+                $isToolbox = $false
+                $packageFiles = Get-ChildItem -LiteralPath $directory.FullName -Filter "package.json" -File -Recurse -ErrorAction SilentlyContinue
+                foreach ($packageFile in $packageFiles) {
+                    try {
+                        $package = Get-Content -LiteralPath $packageFile.FullName -Raw | ConvertFrom-Json
+                        if ($package.name -eq "opencode-toolbox") { $isToolbox = $true; break }
+                    } catch {}
+                }
+
+                if ($isToolbox) {
+                    $key = $directory.FullName.TrimEnd([char]92)
+                    if (-not $seen.ContainsKey($key)) {
+                        $seen[$key] = $true
+                        $results.Add([pscustomobject]@{ Path = $directory.FullName; Kind = (T "legacy") })
+                    }
+                }
+            }
+        }
+    }
+
+    return $results
+}
+
+Write-Host ""
+Write-Host (T "title") -ForegroundColor Cyan
+Write-Host (T "searching") -ForegroundColor Gray
+Write-Host ""
+
+$installations = @(Find-ToolboxInstallations)
+if ($installations.Count -eq 0) {
+    Write-Host (T "none") -ForegroundColor Yellow
+    return
+}
+
+Write-Host (T "found") -ForegroundColor Cyan
+foreach ($installation in $installations) {
+    Write-Host ("  [{0}] {1}" -f $installation.Kind, $installation.Path) -ForegroundColor White
+}
+
+Write-Host ""
+$removed = 0
+$skipped = 0
+$failed = 0
+
+foreach ($installation in $installations) {
+    try {
+        if ($PSCmdlet.ShouldProcess($installation.Path, "Remove OpenCode Toolbox")) {
+            Remove-Item -LiteralPath $installation.Path -Recurse -Force
+            Write-Host ("  {0}: {1}" -f (T "removed"), $installation.Path) -ForegroundColor Green
+            $removed++
+        } else {
+            Write-Host ("  {0}: {1}" -f (T "skipped"), $installation.Path) -ForegroundColor Yellow
+            $skipped++
+        }
+    } catch {
+        Write-Host ("  {0}: {1}" -f (T "failed"), $installation.Path) -ForegroundColor Red
+        Write-Host ("    " + $_.Exception.Message) -ForegroundColor DarkGray
+        $failed++
+    }
+}
+
+Write-Host ""
+if ($WhatIfPreference) {
+    Write-Host (T "dryRun") -ForegroundColor Yellow
+} elseif ($removed -gt 0) {
+    Write-Host (T "complete") -ForegroundColor Green
+    Write-Host (T "restart") -ForegroundColor Gray
+}
+if ($skipped -gt 0 -or $failed -gt 0) {
+    Write-Host ("Removed: {0}; skipped: {1}; failed: {2}" -f $removed, $skipped, $failed) -ForegroundColor Yellow
+}
+Write-Host ""
