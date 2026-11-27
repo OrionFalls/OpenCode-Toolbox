@@ -1,6 +1,7 @@
 import { Plugin } from "@opencode/plugin";
 import { registerTrueModelDisabler } from "./modules/true-model-disabler.js";
 import { registerProviderDisabler, registerMcpPolicy } from "./modules/provider-and-mcp.js";
+import { registerBulkModelToggle } from "./modules/bulk-model-toggle.js";
 
 const DEFAULTS = {
   modules: {
@@ -24,6 +25,7 @@ export default Plugin.define({
       modules: { ...DEFAULTS.modules, ...(stored.modules || {}) },
       disabledProviders: Array.isArray(stored.disabledProviders) ? stored.disabledProviders : [],
       disabledMcpServers: Array.isArray(stored.disabledMcpServers) ? stored.disabledMcpServers : [],
+      modelEnabledOverrides: stored.modelEnabledOverrides && typeof stored.modelEnabledOverrides === "object" ? stored.modelEnabledOverrides : {},
     };
     await ctx.storage.set("settings", settings);
 
