@@ -4731,7 +4731,7 @@ function setupToolboxPage(ctx) {
         description:"Settings are stored in opencode-toolbox.json. Restart OpenCode Desktop to apply server-side changes.",
         get actions(){return h("div",{class:"cp-row-controls"},
           createComponent(ui.Button,{variant:"neutral",size:"small",icon:"refresh",busy:busy(),onClick:()=>void load(),children:"Refresh"}),
-          createComponent(ui.Button,{variant:"contrast",size:"small",icon:"refresh-cw",onClick:async()=>{try{const r=await ipc.restartApp();if(!r.ok)setStatus("Restart failed: "+r.message);}catch(e){setStatus("Restart failed: "+String(e));}},children:"Restart OpenCode"})
+          createComponent(ui.Button,{variant:"contrast",size:"small",icon:"refresh-cw",onClick:async()=>{const confirmed=await ctx.dialogs.confirm({title:"Restart OpenCode Desktop?",description:"All OpenCode windows will close and the application will reopen. Unsaved input may be lost.",confirm:"Restart",cancel:"Cancel"});if(!confirmed)return;try{const r=await ipc.restartApp();if(!r.ok)setStatus("Restart failed: "+r.message);}catch(e){setStatus("Restart failed: "+String(e));}},children:"Restart OpenCode"})
         );},
         get children(){return [
           createComponent(ui.SettingsSection,{title:"Modules",get children(){
@@ -4760,7 +4760,7 @@ function setupToolboxPage(ctx) {
             ];
           }})] : []),
           createComponent(ui.SettingsSection,{title:"About",get children(){return [
-            createComponent(ui.SettingsRow,{title:"Version",description:"0.2.33"}),
+            createComponent(ui.SettingsRow,{title:"Version",description:"0.2.34"}),
             createComponent(ui.SettingsRow,{title:"Settings file",description:"opencode-toolbox.json in the OpenCode config directory."}),
             createComponent(ui.SettingsRow,{title:"Custom Providers attribution",description:"Based on MoGLCL/opencode-custom-provider by MoGlitch. MIT License."}),
             createComponent(ui.SettingsRow,{title:"Status",description:status()||"Ready"})
