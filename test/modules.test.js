@@ -44,7 +44,7 @@ test("setProviderDisabled persists IDs and reloads provider catalog", async () =
 test("Bulk Model Toggle applies persistent per-model overrides", async () => {
   let transform;
   const ctx = { model: { transform: async (fn) => { transform = fn; return { dispose() {} }; } } };
-  const settings = { modelEnabledOverrides: { alpha: { one: false } } };
+  const settings = { modules: { bulkModelToggle: true }, modelEnabledOverrides: { alpha: { one: false } } };
   await registerBulkModelToggle(ctx, () => settings);
   const models = [{ id: "one", enabled: true }, { id: "two", enabled: true }];
   await transform({ update: (_provider, id, fn) => fn(models.find(m => m.id === id)) });
