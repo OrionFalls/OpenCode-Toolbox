@@ -14,29 +14,48 @@ OpenCode Toolbox is a single plugin with its own settings page. Features are org
 | **Model Group Controls** | Add bulk enable/disable controls for models in a provider group. | Planned |
 | **Provider Switcher** | Temporarily disable and re-enable a configured provider without deleting its settings or API key. | Planned |
 
-## Install
+## Install on Windows
 
-Open the OpenCode terminal/CLI and run:
+Open PowerShell and run this single command:
 
-```bash
-opencode plugin add github:OrionFalls/OpenCode-Toolbox#main
+```powershell
+irm https://raw.githubusercontent.com/OrionFalls/OpenCode-Toolbox/main/install.ps1 | iex
 ```
 
-Then restart OpenCode Desktop (or reload its server). The plugin should appear under:
+The self-healing installer:
+
+1. Checks whether `opencode` is already available.
+2. Searches OpenCode Desktop's versioned CLI folders, common installation locations, App Paths registry entries, and Start Menu shortcuts.
+3. Verifies a candidate by running `--version`.
+4. If the CLI is bundled as `opencode-cli.exe`, creates a user-level `opencode.cmd` shim and adds its folder to the **user PATH** (no administrator rights required).
+5. If automatic discovery fails, opens a file picker so you can select `opencode.exe` or `opencode-cli.exe`.
+6. Continues with plugin installation using the exact discovered executable path, so the current session does not depend on PATH refresh.
+
+The installer does not change machine-wide settings, does not require administrator privileges, and does not download or execute an installer for OpenCode itself.
+
+After success, restart OpenCode Desktop and open:
 
 **Settings → Extensions → Plugins → OpenCode Toolbox**
 
-Open the plugin's settings page from the settings navigation, or run the `/toolbox` command.
+You can also open its settings with `/toolbox`.
 
-The command above installs the GitHub `main` branch. To update later:
+### Manual install
 
-```bash
+If you already have the CLI in PATH:
+
+```powershell
+opencode plugin add github:OrionFalls/OpenCode-Toolbox#main
+```
+
+### Update
+
+```powershell
 opencode plugin update opencode-toolbox
 ```
 
-To remove:
+### Remove
 
-```bash
+```powershell
 opencode plugin remove opencode-toolbox
 ```
 
@@ -56,6 +75,12 @@ cd OpenCode-Toolbox
 ```
 
 The GUI entrypoint is currently plain CommonJS at `gui-experimental.cjs`. OpenCode provides `@opencode/plugin/gui` and `solid-js` at runtime, so no separate GUI installation step is required.
+
+Run the syntax checks:
+
+```bash
+npm run check
+```
 
 ## Compatibility
 
