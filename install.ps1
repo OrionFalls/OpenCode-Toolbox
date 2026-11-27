@@ -76,21 +76,19 @@ function Write-Step([int]$Number, [string]$Message) {
     Write-Host ""
     Write-Host ("  {0}/3  {1}" -f $Number, $Message) -ForegroundColor Cyan
 }
-function Write-Ok([string]$Message) { Write-Host ("  [OK]  " + $Message) -ForegroundColor Green }
+function Write-Ok([string]$Message) { Write-Host ("  " + $Message) -ForegroundColor Green }
 function Write-Warn([string]$Message) { Write-Host ("  [!]   " + $Message) -ForegroundColor Yellow }
 function Write-Fail([string]$Message) { Write-Host ("  [X]   " + $Message) -ForegroundColor Red }
 
 function Show-Banner {
     Clear-Host
     Write-Host ""
-    Write-Host "       ____                  ____          _        " -ForegroundColor Cyan
-    Write-Host "      / __ \____  ___  ____  / / /___  ____| |__     " -ForegroundColor Cyan
-    Write-Host "     / / / / __ \/ _ \/ __ \/ / / __ \/ ___/ //_/ " -ForegroundColor Cyan
-    Write-Host "    / /_/ / /_/ /  __/ / / / / / /_/ / /__/ ,<      " -ForegroundColor Cyan
-    Write-Host "    \____/ .___/\___/_/ /_/_/_/\____/\___/_/|_|     " -ForegroundColor Cyan
-    Write-Host "        /_/       TOOLBOX                           " -ForegroundColor Cyan
-    Write-Host ""
-    Write-Host ("  " + (T "subtitle")) -ForegroundColor Gray
+    Write-Host "   OOOO  PPPP  EEEEE N   N    CCCC  OOOO  DDDD  EEEEE" -ForegroundColor Cyan
+    Write-Host "  O    O P   P E     NN  N   C     O    O D   D E    " -ForegroundColor Cyan
+    Write-Host "  O    O PPPP  EEE   N N N   C     O    O D   D EEE  " -ForegroundColor Cyan
+    Write-Host "  O    O P     E     N  NN   C     O    O D   D E    " -ForegroundColor Cyan
+    Write-Host "   OOOO  P     EEEEE N   N    CCCC  OOOO  DDDD  EEEEE" -ForegroundColor Cyan
+    Write-Host "                         TOOLBOX" -ForegroundColor Cyan
     Write-Rule
     Write-Host ""
     Write-Host ("  " + (T "welcome")) -ForegroundColor White
@@ -264,10 +262,7 @@ function Show-Success {
     Write-Host ("    2. " + (T "next2")) -ForegroundColor White
     Write-Host ("    3. " + (T "next3")) -ForegroundColor White
     Write-Host ""
-    Write-Host ("  [OK] " + (T "close")) -ForegroundColor Green
-    Write-Host ("  " + (T "newTerminal")) -ForegroundColor Gray
-    Write-Host ""
-    Write-Host ("  " + (T "footer")) -ForegroundColor DarkGray
+    Write-Host ("  " + (T "close")) -ForegroundColor Green
     Write-Host ""
 }
 
@@ -290,7 +285,6 @@ while (-not $cliPath) {
 Write-Ok (T "found")
 Write-Host ("  " + (T "version") + ": " + $script:DetectedVersion) -ForegroundColor Gray
 if ($ValidateOnly) {
-    Write-Ok (T "found")
     return
 }
 
