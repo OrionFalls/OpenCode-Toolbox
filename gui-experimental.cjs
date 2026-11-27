@@ -41,7 +41,7 @@ function ToolboxPage(ctx) {
             return [
               createComponent(ui.SettingsRow, {
                 title: "Версия",
-                description: "0.2.4",
+                description: "0.2.6",
               }),
               createComponent(ui.SettingsRow, {
                 title: "Авторство Custom Providers",

@@ -48,7 +48,7 @@ export default Plugin.define({
       disposers.push(await registerMcpPolicy(ctx, getSettings));
     }
 
-    console.info("[opencode-toolbox] v0.2.5 loaded");
+    console.info("[opencode-toolbox] v0.2.6 loaded");
     return async () => {
       for (const registration of disposers.reverse()) {
         await registration.dispose?.();

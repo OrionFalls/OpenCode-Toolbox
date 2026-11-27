@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.2.6 — Bulk model toggle syntax correction
+
+- Remove an invalid placeholder statement from the bulk model transform.
+- Synchronize GUI version metadata.
+- Keep README and package metadata aligned.
+
 ## 0.2.5 — Persistent bulk model registration
 
 - Register Bulk Model Toggle as a long-lived model transform when enabled.

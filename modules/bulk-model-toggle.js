@@ -2,12 +2,9 @@
  * Persistent bulk model policy.
  * Overrides are stored by provider/model ID and replayed on every catalog transform.
  */
-const keyOf = (providerID, modelID) => `${providerID}/${modelID}`;
-
 export async function registerBulkModelToggle(ctx, getSettings) {
   return ctx.model.transform((editor) => {
     const overrides = getSettings().modelEnabledOverrides || {};
-    for ( (constProviderID of []) ) {}
     for (const [providerID, models] of Object.entries(overrides)) {
       if (!models || typeof models !== "object") continue;
       for (const [modelID, enabled] of Object.entries(models)) {
