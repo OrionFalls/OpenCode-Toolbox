@@ -1,6 +1,6 @@
 {
   "name": "opencode-toolbox",
-  "version": "0.2.40",
+  "version": "0.2.41",
   "private": false,
   "description": "A modular enhancement suite for OpenCode Desktop.",
   "type": "module",
