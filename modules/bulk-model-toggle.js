@@ -49,7 +49,7 @@ export async function setProviderModelsEnabled(ctx, providerID, enabled, runtime
   const next = { ...current, providerEnabledOverrides };
   if (runtimeSettings) Object.assign(runtimeSettings, next);
   await ctx.storage.set("settings", next);
-  await ctx.provider.reload();
+  // Shared settings watcher reapplies the transform without a disruptive provider reload.
   return { providerID, enabled: Boolean(enabled) };
 }
 
